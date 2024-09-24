@@ -132,21 +132,21 @@ func archiveAndDeleteRecursively(path, source string, tarWriter *tar.Writer, exc
 		}
 
 		if err := addToArchive(path, source, tarWriter); err != nil {
-			return fmt.Errorf("ошибка при добавлении %s в архив: %v", path, err)
+			return fmt.Errorf("Error adding %s to archive: %v", path, err)
 		}
 
 		if isEmpty && path != "/" {
 			if err := os.Remove(path); err != nil {
-				fmt.Printf("Ошибка при удалении директории %s: %v\n", path, err)
+				fmt.Printf("Error removing directory %s: %v\n", path, err)
 			}
 		}
 	} else {
 		if err := addToArchive(path, source, tarWriter); err != nil {
-			return fmt.Errorf("ошибка при добавлении %s в архив: %v", path, err)
+			return fmt.Errorf("Error adding %s to archive: %v", path, err)
 		}
 		if fi.Mode()&os.ModeSymlink == 0 {
 			if err := os.Remove(path); err != nil {
-				fmt.Printf("Ошибка при удалении файла %s: %v\n", path, err)
+				fmt.Printf("Error removing file %s: %v\n", path, err)
 			}
 		}
 	}
@@ -157,14 +157,14 @@ func archiveAndDeleteRecursively(path, source string, tarWriter *tar.Writer, exc
 func main() {
 	mountedDirs, err := getMountedDirs()
 	if err != nil {
-		fmt.Printf("Ошибка при получении смонтированных директорий: %v\n", err)
+		fmt.Printf("Error retrieving mounted directories: %v\n", err)
 		return
 	}
 
 	excludedDirs := append(
 		mountedDirs,
-		"/proc", "/sys", "/dev", "/run", // Системные директории
-		"/busybox", "/workspace", "/rumett", // Пользовательские исключения
+		"/proc", "/sys", "/dev", "/run", // System directories
+		"/busybox", "/workspace", "/rumett", // User-specific exclusions
 	)
 
 	source := "/"
@@ -172,7 +172,7 @@ func main() {
 
 	tarFile, err := os.Create(target)
 	if err != nil {
-		fmt.Printf("Ошибка при создании файла архива: %v\n", err)
+		fmt.Printf("Error creating archive file: %v\n", err)
 		return
 	}
 	defer tarFile.Close()
@@ -181,8 +181,8 @@ func main() {
 	defer tarWriter.Close()
 
 	if err := archiveAndDeleteRecursively(source, source, tarWriter, excludedDirs); err != nil {
-		fmt.Printf("Ошибка при архивации и удалении: %v\n", err)
+		fmt.Printf("Error during archiving and deletion: %v\n", err)
 	} else {
-		fmt.Println("Архивация и удаление завершены успешно.")
+		fmt.Println("Archiving and deletion completed successfully.")
 	}
 }

@@ -23,19 +23,29 @@ RUN set -eux \
   && /busybox/busybox --install /busybox
 
 
-# Stage 2: Build Rumett
-FROM golang:1.23.1-alpine3.20 AS rumett
+# Stage 2: Build Givme
+FROM golang:1.23.1-alpine3.20 AS givme
 COPY . /src/app
 WORKDIR /src/app
 
-# ENV GOPROXY https://nexus.exness.io/repository/go,https://proxy.golang.org,direct
 RUN go mod download
-RUN CGO_ENABLED=0 GOOS=linux go build -o rumett .
+RUN CGO_ENABLED=0 GOOS=linux go build -o givme .
 
 # Stage 3: Get certificates
 FROM alpine AS certs
 
 RUN apk add --no-cache ca-certificates
+
+# Stage 4: Download Crane
+FROM curlimages/curl AS crane
+
+ARG CRANE_OS="Linux"
+ARG CRANE_ARCH="x86_64"
+ARG CRANE_VERSION="v0.20.2"
+
+RUN curl -sSfL -o- \
+    "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/go-containerregistry_${CRANE_OS}_${CRANE_ARCH}.tar.gz" \
+    | tar -xzf - -C /tmp crane
 
 # Final stage: Build the scratch-based image
 FROM scratch
@@ -44,16 +54,19 @@ FROM scratch
 COPY --from=busybox /busybox /busybox
 COPY --from=busybox /busybox/sh /bin/sh
 
-# Copy Rumett
-COPY --from=rumett /src/app/rumett /rumett/load
+# Copy Givme
+COPY --from=givme /src/app/givme /workspace/givme
 
 # Copy Certs
-COPY --from=certs /etc/ssl/certs/ca-certificates.crt /rumett/certs/ca-certificates.crt
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /workspace/certs/ca-certificates.crt
 
-ENV PATH="/busybox" \
+# Copy Crane
+COPY --from=crane /tmp/crane /workspace/crane
+
+ENV PATH="/busybox:/workspace" \
     HOME="/root" \
     USER="root" \
-    SSL_CERT_DIR="/rumett/certs"
+    SSL_CERT_DIR="/workspace/certs"
 
 WORKDIR /workspace
 

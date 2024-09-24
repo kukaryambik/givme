@@ -1,0 +1,7 @@
+.git
+*.md
+*Dockerfile
+*.gitlab-ci.yml
+deploy/
+.idea
+.dockerignore

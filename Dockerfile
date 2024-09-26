@@ -22,21 +22,12 @@ RUN set -eux \
   && cp /busybox-${BUSYBOX_VERSION}/busybox /busybox/busybox \
   && /busybox/busybox --install /busybox
 
-
-# Stage 2: Build Givme
-FROM golang:1.23.1-alpine3.20 AS givme
-COPY . /src/app
-WORKDIR /src/app
-
-RUN go mod download
-RUN CGO_ENABLED=0 GOOS=linux go build -o givme .
-
-# Stage 3: Get certificates
+# Stage 2: Get certificates
 FROM alpine AS certs
 
 RUN apk add --no-cache ca-certificates
 
-# Stage 4: Download Crane
+# Stage 3: Download Crane
 FROM curlimages/curl AS crane
 
 ARG CRANE_OS="Linux"
@@ -46,6 +37,17 @@ ARG CRANE_VERSION="v0.20.2"
 RUN curl -sSfL -o- \
     "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/go-containerregistry_${CRANE_OS}_${CRANE_ARCH}.tar.gz" \
     | tar -xzf - -C /tmp crane
+
+# Stage 4: Build Givme
+FROM golang:1.23.1-alpine3.20 AS givme
+
+WORKDIR /src/app
+
+COPY go.* /src/app/
+RUN go mod download
+
+COPY . /src/app
+RUN CGO_ENABLED=0 GOOS=linux go build -o givme ./cmd/givme
 
 # Final stage: Build the scratch-based image
 FROM scratch

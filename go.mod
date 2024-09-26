@@ -1,4 +1,4 @@
-module github.com/kukaryambik/rumett
+module github.com/kukaryambik/givme
 
 go 1.23.1
 

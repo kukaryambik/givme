@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kukaryambik/rumett/pkg/archiver"
-	"github.com/kukaryambik/rumett/pkg/list"
-	"github.com/kukaryambik/rumett/pkg/util"
+	"github.com/kukaryambik/givme/pkg/archiver"
+	"github.com/kukaryambik/givme/pkg/list"
+	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

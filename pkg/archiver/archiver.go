@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kukaryambik/rumett/pkg/util"
+	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/mholt/archiver/v4"
 )
 

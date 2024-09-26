@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kukaryambik/rumett/pkg/util"
+	"github.com/kukaryambik/givme/pkg/util"
 )
 
 // ListPaths walks through files and directories recursively, excluding specified paths.

@@ -51,7 +51,7 @@ func GetFS(logger *logrus.Logger, image, tar string) error {
 	defer tarFile.Close()
 
 	// Export the image filesystem to the tar file
-	logger.Infof("Exporting filesystem of image %s to %s", image, tar)
+	logger.Debugf("Exporting filesystem of image %s to %s", image, tar)
 	if err := crane.Export(img, tarFile); err != nil {
 		logger.Errorf("Error exporting image %s to %s: %v", image, tar, err)
 		if err := os.Remove(tar); err != nil {
@@ -60,7 +60,7 @@ func GetFS(logger *logrus.Logger, image, tar string) error {
 		return fmt.Errorf("error exporting image %s: %v", image, err)
 	}
 
-	logger.Infof("Successfully exported filesystem of image %s to %s", image, tar)
+	logger.Debugf("Successfully exported filesystem of image %s to %s", image, tar)
 	return nil
 }
 
@@ -81,7 +81,7 @@ func GetEnv(logger *logrus.Logger, image string) ([]string, error) {
 		return nil, fmt.Errorf("error fetching config file for image %s: %v", image, err)
 	}
 
-	logger.Infof("Successfully fetched environment variables for image: %s", image)
+	logger.Debugf("Successfully fetched environment variables for image: %s", image)
 	// Return the environment variables from the config file
 	return configFile.Config.Env, nil
 }

@@ -21,21 +21,23 @@ var (
 )
 
 // getLogger initializes and returns a logger
-func getLogger(verbose string) *logrus.Logger {
+func getLogger(v string) *logrus.Logger {
 	verbose = viper.GetString("verbose")
 
 	// Create a new logrus logger
 	l := logrus.New()
 	l.SetOutput(os.Stderr)
-	lvl, err := logrus.ParseLevel(verbose)
+	lvl, err := logrus.ParseLevel(v)
 	if err != nil {
-		log.Fatalf("error parsing level %v: %v", verbose, err)
+		log.Fatalf("error parsing level %v: %v", v, err)
 	}
 	l.SetLevel(lvl)
 	return l
 }
 
 func main() {
+	l := getLogger("info")
+
 	viper.SetEnvPrefix(appName) // Environment variables prefixed with GIVME_
 	viper.AutomaticEnv()        // Automatically bind environment variables
 
@@ -57,8 +59,6 @@ func main() {
 
 	// Bind flags to environment variables
 	viper.BindPFlags(rootCmd.PersistentFlags())
-
-	l := getLogger(verbose)
 
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 
@@ -116,8 +116,8 @@ func main() {
 			},
 		},
 		&cobra.Command{
-			Use:   "unpack",
-			Short: "Unpack container image",
+			Use:   "load",
+			Short: "Load container image",
 			Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 			Run: func(cmd *cobra.Command, args []string) {
 				snapshotCmd(l)
@@ -132,7 +132,7 @@ func main() {
 				} else {
 					fmt.Printf("%s\n", strings.Join(imageEnv, "\n"))
 				}
-				l.Infof("Image %s has been successfully unpacked!\n", args[0])
+				l.Infof("Image %s has been loaded!\n", args[0])
 			},
 		},
 	)

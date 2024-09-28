@@ -44,7 +44,7 @@ func Tar(logger *logrus.Logger, src []string, dst string) error {
 		return err
 	}
 
-	logger.Infof("Successfully created tar archive: %s", dst)
+	logger.Debugf("Successfully created tar archive: %s", dst)
 	return nil
 }
 
@@ -139,6 +139,6 @@ func Untar(logger *logrus.Logger, src, dst string, excl []string) error {
 		return err
 	}
 
-	logger.Infof("Successfully extracted archive: %s", src)
+	logger.Debugf("Successfully extracted archive: %s", src)
 	return nil
 }

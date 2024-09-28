@@ -26,7 +26,7 @@ func buildExclusions(logger *logrus.Logger) ([]string, error) {
 
 	// Append system directories and user-defined paths to exclusions.
 	exclusions := append(mounts, "/proc", "/sys", "/dev", "/run",
-		"/busybox", workDir, file, ".", "/bin/sh")
+		"/busybox", workDir, file)
 
 	logger.Tracef("Exclusions before adding user-defined: %v", exclusions)
 
@@ -76,7 +76,7 @@ func snapshotCmd(logger *logrus.Logger) error {
 		if err := archiver.Tar(logger, paths, file); err != nil {
 			return err
 		}
-		logger.Infoln("Snapshot created successfully!")
+		logger.Infoln("Snapshot has created!")
 	}
 	return nil
 }
@@ -94,7 +94,7 @@ func restoreCmd(logger *logrus.Logger, file string) error {
 	if err := archiver.Untar(logger, file, rootfs, allExcludes); err != nil {
 		return err
 	}
-	logger.Infoln("FS has successfully restored!")
+	logger.Infoln("FS has restored!")
 	return nil
 }
 
@@ -114,11 +114,12 @@ func cleanupCmd(logger *logrus.Logger) error {
 		return err
 	}
 
+
 	logger.Debugf("Removing paths: %v", paths)
 	if err := util.Rmrf(paths); err != nil {
 		return err
 	}
-	logger.Infoln("Cleanup has completed successfully!")
+	logger.Infoln("Cleanup has completed!")
 	return nil
 }
 

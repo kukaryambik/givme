@@ -7,18 +7,15 @@ import (
 	"github.com/kukaryambik/givme/pkg/util"
 )
 
-// ListPaths walks through files and directories recursively, excluding specified paths.
+// ListPaths recursively lists files and directories, excluding specified paths.
 func ListPaths(path string, exclude []string, list *[]string) error {
-	p, err := filepath.Abs(path)
-	if err != nil {
+	absPath, err := filepath.Abs(path)
+	if err != nil || util.IsPathFrom(absPath, exclude) {
 		return err
 	}
 
-	if util.IsPathFrom(p, exclude) {
-		return nil
-	}
-
-	fi, err := os.Lstat(p)
+	// Get file or directory info
+	fi, err := os.Lstat(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -26,25 +23,25 @@ func ListPaths(path string, exclude []string, list *[]string) error {
 		return err
 	}
 
+	// If it's a directory, process its contents recursively
 	if fi.IsDir() {
-		// Check if the path contains exclusions.
-		if util.IsPathContains(p, exclude) {
-			entries, err := os.ReadDir(p)
+		if util.IsPathContains(absPath, exclude) {
+			entries, err := os.ReadDir(absPath)
 			if err != nil {
 				return err
 			}
 			for _, entry := range entries {
-				f := filepath.Join(p, entry.Name())
-				err := ListPaths(f, exclude, list)
-				if err != nil {
+				// Recursively list paths within the directory
+				if err := ListPaths(filepath.Join(absPath, entry.Name()), exclude, list); err != nil {
 					return err
 				}
 			}
 		} else {
-			*list = append(*list, p)
+			*list = append(*list, absPath)
 		}
 	} else {
-		*list = append(*list, p)
+		// Add the file path to the list
+		*list = append(*list, absPath)
 	}
 
 	return nil

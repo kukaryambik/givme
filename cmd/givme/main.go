@@ -6,8 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kukaryambik/givme/pkg/archiver"
-	"github.com/kukaryambik/givme/pkg/list"
+	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -16,31 +15,8 @@ import (
 const appName = "givme"
 
 var (
-	target, workDir, source, exclude string
+	dotenv, file, workDir, rootfs, exclude string
 )
-
-// buildExclusions generates a list of directories that should be excluded
-// from operations such as snapshot creation or restoration.
-func buildExclusions() ([]string, error) {
-	mounts, err := util.GetMounts() // Get system mount points.
-	if err != nil {
-		return nil, err
-	}
-
-	// Append system directories and user-defined paths to exclusions.
-	exclusions := append(mounts, "/proc", "/sys", "/dev", "/run",
-		"/busybox", workDir, target)
-
-	// Add user-specified excluded directories from environment variable.
-	if exclude != "" {
-		exclusions = append(exclusions, strings.FieldsFunc(
-			exclude, func(r rune) bool {
-				return r == ':' || r == ','
-			})...)
-	}
-
-	return exclusions, nil
-}
 
 // runWithPreCheck is a helper function that runs the provided action function
 // and handles error checking, printing a success or failure message.
@@ -53,57 +29,6 @@ func runWithPreCheck(cmd *cobra.Command, action func() error) {
 	}
 }
 
-// snapshotAction creates a tar archive of the source directory, excluding
-// the directories specified in buildExclusions.
-func snapshotAction() error {
-	allExcludes, err := buildExclusions()
-	if err != nil {
-		return err
-	}
-
-	var paths []string
-	if err := list.ListPaths(source, allExcludes, &paths); err != nil {
-		return err
-	}
-
-	// Check if the target file already exists.
-	if _, err := os.Stat(target); err == nil {
-		return fmt.Errorf("file %s already exists", target)
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("error checking file %s: %v", target, err)
-	}
-
-	// Create the tar archive.
-	return archiver.Tar(paths, target)
-}
-
-// restoreAction extracts the contents of the tar archive to the source
-// directory, while skipping directories listed in buildExclusions.
-func restoreAction() error {
-	allExcludes, err := buildExclusions()
-	if err != nil {
-		return err
-	}
-
-	return archiver.Untar(target, source, allExcludes)
-}
-
-// cleanupAction removes files and directories in the source directory,
-// excluding the paths specified in buildExclusions.
-func cleanupAction() error {
-	allExcludes, err := buildExclusions()
-	if err != nil {
-		return err
-	}
-
-	var paths []string
-	if err := list.ListPaths(source, allExcludes, &paths); err != nil {
-		return err
-	}
-
-	return util.Rmrf(paths)
-}
-
 func main() {
 	viper.SetEnvPrefix(appName) // Environment variables prefixed with GIVME_
 	viper.AutomaticEnv()        // Automatically bind environment variables
@@ -112,13 +37,15 @@ func main() {
 
 	// Define global flags
 	rootCmd.PersistentFlags().StringVarP(
-		&workDir, "workdir", "w", "", "Working directory")
+		&workDir, "workdir", "w", ".", "Working directory")
 	rootCmd.PersistentFlags().StringVarP(
-		&target, "target", "t", "", "Target archive path")
+		&file, "file", "f", "", "The archive path")
 	rootCmd.PersistentFlags().StringVarP(
-		&source, "source", "s", "/", "Source directory")
+		&rootfs, "rootfs", "r", "/", "RootFS directory")
 	rootCmd.PersistentFlags().StringVarP(
 		&exclude, "exclude", "e", "", "Excluded directories")
+	rootCmd.PersistentFlags().StringVarP(
+		&exclude, "dotenv", "", "", ".env file")
 
 	// Bind flags to environment variables
 	viper.BindPFlags(rootCmd.PersistentFlags())
@@ -126,18 +53,17 @@ func main() {
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		// Set variables from flags or environment
 		workDir = viper.GetString("workdir")
-		target = viper.GetString("target")
-		source = viper.GetString("source")
+		file = viper.GetString("file")
+		rootfs = viper.GetString("rootfs")
 		exclude = viper.GetString("exclude")
 
-		// Default target file if not provided.
-		if target == "" {
-			target = filepath.Join(workDir, "image.tar")
+		// Default tar file if not provided.
+		if file == "" {
+			file = filepath.Join(workDir, "snapshot.tar")
 		}
-
-		// If workDir is not set, use the directory of the executable.
-		if workDir == "" {
-			workDir = util.GetExecDir()
+		// Default .env file if not provided.
+		if dotenv == "" {
+			dotenv = filepath.Join(workDir, ".env")
 		}
 
 		// Ensure the work directory exists.
@@ -153,28 +79,55 @@ func main() {
 			Use:   "snapshot",
 			Short: "Create a snapshot archive",
 			Run: func(cmd *cobra.Command, args []string) {
-				runWithPreCheck(cmd, snapshotAction)
+				runWithPreCheck(cmd, snapshotCmd)
 			},
 		},
 		&cobra.Command{
 			Use:   "restore",
 			Short: "Restore from a snapshot archive",
 			Run: func(cmd *cobra.Command, args []string) {
-				runWithPreCheck(cmd, restoreAction)
+				restoreCmd(file)
+				fmt.Println("System successfully restored.")
 			},
 		},
 		&cobra.Command{
 			Use:   "cleanup",
 			Short: "Clean up directories",
 			Run: func(cmd *cobra.Command, args []string) {
-				runWithPreCheck(cmd, cleanupAction)
+				runWithPreCheck(cmd, cleanupCmd)
+			},
+		},
+		&cobra.Command{
+			Use:   "download",
+			Short: "Download container image",
+			Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
+			Run: func(cmd *cobra.Command, args []string) {
+				name := args[0] // Access the argument
+				runWithPreCheck(cmd, func() error {
+					return downloadCmd(name) // Pass the argument to the action
+				})
+			},
+		},
+		&cobra.Command{
+			Use:   "unpack",
+			Short: "Unpack container image",
+			Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
+			Run: func(cmd *cobra.Command, args []string) {
+				snapshotCmd()
+				downloadCmd(args[0])
+				cleanupCmd()
+				tar := filepath.Join(workDir, util.Slugify(args[0]), "image.tar")
+				restoreCmd(tar)
+				fmt.Fprintf(os.Stderr, "Image %s successfully unpacked!\n", args[0])
+				imageEnv, _ := image.GetEnv(args[0])
+				fmt.Printf("%s\n", strings.Join(imageEnv, "\n"))
 			},
 		},
 	)
 
 	// Execute the root command.
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

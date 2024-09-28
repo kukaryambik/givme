@@ -27,18 +27,7 @@ FROM alpine AS certs
 
 RUN apk add --no-cache ca-certificates
 
-# Stage 3: Download Crane
-FROM curlimages/curl AS crane
-
-ARG CRANE_OS="Linux"
-ARG CRANE_ARCH="x86_64"
-ARG CRANE_VERSION="v0.20.2"
-
-RUN curl -sSfL -o- \
-    "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/go-containerregistry_${CRANE_OS}_${CRANE_ARCH}.tar.gz" \
-    | tar -xzf - -C /tmp crane
-
-# Stage 4: Build Givme
+# Stage 3: Build Givme
 FROM golang:1.23.1-alpine3.20 AS givme
 
 WORKDIR /src/app
@@ -52,24 +41,21 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o givme ./cmd/givme
 # Final stage: Build the scratch-based image
 FROM scratch
 
+WORKDIR /workspace
+
 # Copy BusyBox
 COPY --from=busybox /busybox /busybox
 COPY --from=busybox /busybox/sh /bin/sh
 
+# Copy Certs
+COPY --from=certs /etc/ssl/certs /workspace/certs
+
 # Copy Givme
 COPY --from=givme /src/app/givme /workspace/givme
 
-# Copy Certs
-COPY --from=certs /etc/ssl/certs/ca-certificates.crt /workspace/certs/ca-certificates.crt
-
-# Copy Crane
-COPY --from=crane /tmp/crane /workspace/crane
-
-ENV PATH="/busybox:/workspace" \
+ENV PATH="/busybox" \
     HOME="/root" \
     USER="root" \
     SSL_CERT_DIR="/workspace/certs"
-
-WORKDIR /workspace
 
 ENTRYPOINT ["sh"]

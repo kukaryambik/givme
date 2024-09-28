@@ -6,19 +6,27 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
+// Slugify converts a string into a slug (URL-friendly format).
+func Slugify(s string) string {
+	re := regexp.MustCompile(`[^a-zA-Z0-9]+`)
+	return strings.Trim(re.ReplaceAllString(s, "-"), "-")
+}
+
+// Rmrf removes all files and directories in the provided paths.
 func Rmrf(paths []string) error {
 	for _, path := range paths {
-		err := os.RemoveAll(path)
-		if err != nil {
+		if err := os.RemoveAll(path); err != nil {
 			return fmt.Errorf("failed to remove %s: %w", path, err)
 		}
 	}
 	return nil
 }
 
+// GetExecDir returns the directory of the current executable.
 func GetExecDir() string {
 	exe, err := os.Executable()
 	if err != nil {
@@ -32,7 +40,7 @@ func GetExecDir() string {
 	return absDir
 }
 
-// GetMountDirs returns a list of mounted directories.
+// GetMounts returns a list of mounted directories.
 func GetMounts() ([]string, error) {
 	file, err := os.Open("/proc/mounts")
 	if err != nil {
@@ -51,29 +59,29 @@ func GetMounts() ([]string, error) {
 	return dirs, scanner.Err()
 }
 
-// IsPathFrom checks if a path is from one of the listed paths.
+// IsPathFrom checks if a path originates from any of the listed paths.
 func IsPathFrom(path string, list []string) bool {
-	a, err := filepath.Abs(path)
+	absPath, err := filepath.Abs(path)
 	if err != nil {
 		fmt.Printf("Error getting absolute path: %v\n", err)
 		return false
 	}
-	for _, s := range list {
-		b, err := filepath.Abs(s)
+	for _, base := range list {
+		absBase, err := filepath.Abs(base)
 		if err != nil {
 			fmt.Printf("Error getting absolute path: %v\n", err)
 			return false
 		}
-		if a == b || strings.HasPrefix(a, b+string(os.PathSeparator)) {
+		if absPath == absBase || strings.HasPrefix(absPath, absBase+string(os.PathSeparator)) {
 			return true
 		}
 	}
 	return false
 }
 
-// IsPathContains checks if a path contains one of the listed paths.
+// IsPathContains checks if a path contains any of the listed paths.
 func IsPathContains(path string, list []string) bool {
-	a, err := filepath.Abs(path)
+	absPath, err := filepath.Abs(path)
 	if err != nil {
 		fmt.Printf("Error getting absolute path: %v\n", err)
 		return false
@@ -81,19 +89,19 @@ func IsPathContains(path string, list []string) bool {
 	if path == "/" {
 		return true
 	}
-	for _, s := range list {
-		b, err := filepath.Abs(s)
+	for _, subPath := range list {
+		absSubPath, err := filepath.Abs(subPath)
 		if err != nil {
 			return false
 		}
-		if a == b || strings.HasPrefix(b, a+string(os.PathSeparator)) {
+		if absPath == absSubPath || strings.HasPrefix(absSubPath, absPath+string(os.PathSeparator)) {
 			return true
 		}
 	}
 	return false
 }
 
-// IsDirEmpty checks if a directory is empty.
+// IsDirEmpty checks if the specified directory is empty.
 func IsDirEmpty(dir string) (bool, error) {
 	f, err := os.Open(dir)
 	if err != nil {

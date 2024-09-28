@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/kukaryambik/givme/pkg/util"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -15,18 +17,22 @@ import (
 const appName = "givme"
 
 var (
-	dotenv, file, workDir, rootfs, exclude string
+	dotenv, file, workDir, rootfs, exclude, verbose string
 )
 
-// runWithPreCheck is a helper function that runs the provided action function
-// and handles error checking, printing a success or failure message.
-func runWithPreCheck(cmd *cobra.Command, action func() error) {
-	if err := action(); err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
-	} else {
-		fmt.Println(strings.Title(cmd.Use) + " completed successfully.")
+// getLogger initializes and returns a logger
+func getLogger(verbose string) *logrus.Logger {
+	verbose = viper.GetString("verbose")
+
+	// Create a new logrus logger
+	l := logrus.New()
+	l.SetOutput(os.Stderr)
+	lvl, err := logrus.ParseLevel(verbose)
+	if err != nil {
+		log.Fatalf("error parsing level %v: %v", verbose, err)
 	}
+	l.SetLevel(lvl)
+	return l
 }
 
 func main() {
@@ -46,11 +52,16 @@ func main() {
 		&exclude, "exclude", "e", "", "Excluded directories")
 	rootCmd.PersistentFlags().StringVarP(
 		&exclude, "dotenv", "", "", ".env file")
+	rootCmd.PersistentFlags().StringVarP(
+		&exclude, "verbose", "v", "info", "Verbose level of output")
 
 	// Bind flags to environment variables
 	viper.BindPFlags(rootCmd.PersistentFlags())
 
+	l := getLogger(verbose)
+
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+
 		// Set variables from flags or environment
 		workDir = viper.GetString("workdir")
 		file = viper.GetString("file")
@@ -68,7 +79,7 @@ func main() {
 
 		// Ensure the work directory exists.
 		if err := os.MkdirAll(workDir, 0755); err != nil {
-			fmt.Printf("Error creating work directory: %v\n", err)
+			l.Errorf("Error creating work directory: %v", err)
 			os.Exit(1)
 		}
 	}
@@ -79,22 +90,21 @@ func main() {
 			Use:   "snapshot",
 			Short: "Create a snapshot archive",
 			Run: func(cmd *cobra.Command, args []string) {
-				runWithPreCheck(cmd, snapshotCmd)
+				snapshotCmd(l)
 			},
 		},
 		&cobra.Command{
 			Use:   "restore",
 			Short: "Restore from a snapshot archive",
 			Run: func(cmd *cobra.Command, args []string) {
-				restoreCmd(file)
-				fmt.Println("System successfully restored.")
+				restoreCmd(l, file)
 			},
 		},
 		&cobra.Command{
 			Use:   "cleanup",
 			Short: "Clean up directories",
 			Run: func(cmd *cobra.Command, args []string) {
-				runWithPreCheck(cmd, cleanupCmd)
+				cleanupCmd(l)
 			},
 		},
 		&cobra.Command{
@@ -102,10 +112,7 @@ func main() {
 			Short: "Download container image",
 			Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 			Run: func(cmd *cobra.Command, args []string) {
-				name := args[0] // Access the argument
-				runWithPreCheck(cmd, func() error {
-					return downloadCmd(name) // Pass the argument to the action
-				})
+				downloadCmd(l, args[0]) // Pass the argument to the action
 			},
 		},
 		&cobra.Command{
@@ -113,21 +120,26 @@ func main() {
 			Short: "Unpack container image",
 			Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 			Run: func(cmd *cobra.Command, args []string) {
-				snapshotCmd()
-				downloadCmd(args[0])
-				cleanupCmd()
+				snapshotCmd(l)
+				downloadCmd(l, args[0])
+				cleanupCmd(l)
 				tar := filepath.Join(workDir, util.Slugify(args[0]), "image.tar")
-				restoreCmd(tar)
-				fmt.Fprintf(os.Stderr, "Image %s successfully unpacked!\n", args[0])
-				imageEnv, _ := image.GetEnv(args[0])
-				fmt.Printf("%s\n", strings.Join(imageEnv, "\n"))
+				restoreCmd(l, tar)
+				imageEnv, err := image.GetEnv(l, args[0])
+				if err != nil {
+					l.Errorln(err)
+					os.Exit(1)
+				} else {
+					fmt.Printf("%s\n", strings.Join(imageEnv, "\n"))
+				}
+				l.Infof("Image %s has been successfully unpacked!\n", args[0])
 			},
 		},
 	)
 
 	// Execute the root command.
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		l.Errorln(err)
 		os.Exit(1)
 	}
 }

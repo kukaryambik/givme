@@ -60,45 +60,42 @@ func GetMounts() ([]string, error) {
 }
 
 // IsPathFrom checks if a path originates from any of the listed paths.
-func IsPathFrom(path string, list []string) bool {
+func IsPathFrom(path string, list []string) (bool, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		fmt.Printf("Error getting absolute path: %v\n", err)
-		return false
+		return false, fmt.Errorf("error getting absolute path for %s: %v", path, err)
 	}
 	for _, base := range list {
 		absBase, err := filepath.Abs(base)
 		if err != nil {
-			fmt.Printf("Error getting absolute path: %v\n", err)
-			return false
+			return false, fmt.Errorf("error getting absolute path for %s: %v", base, err)
 		}
 		if absPath == absBase || strings.HasPrefix(absPath, absBase+string(os.PathSeparator)) {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // IsPathContains checks if a path contains any of the listed paths.
-func IsPathContains(path string, list []string) bool {
+func IsPathContains(path string, list []string) (bool, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		fmt.Printf("Error getting absolute path: %v\n", err)
-		return false
+		return false, fmt.Errorf("error getting absolute path for %s: %v", path, err)
 	}
 	if path == "/" {
-		return true
+		return true, nil
 	}
 	for _, subPath := range list {
 		absSubPath, err := filepath.Abs(subPath)
 		if err != nil {
-			return false
+			return false, fmt.Errorf("error getting absolute path for %s: %v", subPath, err)
 		}
 		if absPath == absSubPath || strings.HasPrefix(absSubPath, absPath+string(os.PathSeparator)) {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // IsDirEmpty checks if the specified directory is empty.

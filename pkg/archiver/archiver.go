@@ -9,24 +9,27 @@ import (
 
 	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/mholt/archiver/v4"
+	"github.com/sirupsen/logrus"
 )
 
-func Tar(sources []string, destination string) error {
+func Tar(logger *logrus.Logger, src []string, dst string) error {
 	filesMap := make(map[string]string)
-	for _, src := range sources {
+	for _, srcPath := range src {
 		// Map source file paths, trimming leading slashes
-		filesMap[src] = strings.TrimLeft(src, "/")
+		filesMap[srcPath] = strings.TrimLeft(srcPath, "/")
 	}
 
 	// Collect files from disk for archiving
 	files, err := archiver.FilesFromDisk(nil, filesMap)
 	if err != nil {
+		logger.Errorf("Error collecting files from disk: %v", err)
 		return err
 	}
 
 	// Create the destination archive file
-	out, err := os.Create(destination)
+	out, err := os.Create(dst)
 	if err != nil {
+		logger.Errorf("Error creating destination file %s: %v", dst, err)
 		return err
 	}
 	defer out.Close()
@@ -37,16 +40,19 @@ func Tar(sources []string, destination string) error {
 	// Archive the files to the output
 	err = tar.Archive(context.Background(), out, files)
 	if err != nil {
+		logger.Errorf("Error archiving files: %v", err)
 		return err
 	}
 
+	logger.Infof("Successfully created tar archive: %s", dst)
 	return nil
 }
 
-func Untar(source, destination string, exclude []string) error {
+func Untar(logger *logrus.Logger, src, dst string, excl []string) error {
 	// Open the source archive for reading
-	input, err := os.Open(source)
+	input, err := os.Open(src)
 	if err != nil {
+		logger.Errorf("Error opening source archive %s: %v", src, err)
 		return err
 	}
 	defer input.Close()
@@ -56,16 +62,29 @@ func Untar(source, destination string, exclude []string) error {
 
 	// Define handler for extracting files from the archive
 	handler := func(ctx context.Context, file archiver.File) error {
-		targetPath := filepath.Join(destination, file.NameInArchive)
+		targetPath := filepath.Join(dst, file.NameInArchive)
+
+		// Check if the path should be excluded using util.IsPathFrom
+		shouldExclude, err := util.IsPathFrom(targetPath, excl)
+		if err != nil {
+			return err
+		}
 
 		// Skip excluded paths
-		if util.IsPathFrom(targetPath, exclude) {
+		if shouldExclude {
+			logger.Debugf("Skipping excluded path: %s", targetPath)
 			return nil
 		}
 
 		// Handle symbolic links
 		if file.LinkTarget != "" {
+			logger.Debugf("Creating symbolic link for %s -> %s", targetPath, file.LinkTarget)
+			if err := os.RemoveAll(targetPath); err != nil {
+				logger.Errorf("Error removing existing file %s: %v", targetPath, err)
+				return err
+			}
 			if err := os.Symlink(file.LinkTarget, targetPath); err != nil {
+				logger.Errorf("Error creating symbolic link %s: %v", targetPath, err)
 				return err
 			}
 			return nil
@@ -73,27 +92,31 @@ func Untar(source, destination string, exclude []string) error {
 
 		// Create directories if needed
 		if file.IsDir() {
+			logger.Debugf("Creating directory: %s", targetPath)
 			if err := os.MkdirAll(targetPath, os.ModePerm); err != nil {
+				logger.Errorf("Error creating directory %s: %v", targetPath, err)
 				return err
 			}
-			// Set directory permissions
 			return os.Chmod(targetPath, file.Mode())
 		}
 
-		// Ensure parent directories exist for the file
+		// Ensure parent directories exist
 		if err := os.MkdirAll(filepath.Dir(targetPath), os.ModePerm); err != nil {
+			logger.Errorf("Error creating parent directories for %s: %v", targetPath, err)
 			return err
 		}
 
-		// Create the file and write its content
-		outFile, err := os.Create(targetPath)
+		// Open the file for writing, truncating it if it already exists
+		outFile, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, file.Mode())
 		if err != nil {
-			return err
+			logger.Errorf("Error opening file %s for writing: %v", targetPath, err)
+			return nil // Continue with other files
 		}
 		defer outFile.Close()
 
 		fileReader, err := file.Open()
 		if err != nil {
+			logger.Errorf("Error opening archive file %s: %v", file.NameInArchive, err)
 			return err
 		}
 		defer fileReader.Close()
@@ -101,18 +124,21 @@ func Untar(source, destination string, exclude []string) error {
 		// Copy file data from the archive to the target file
 		_, err = io.Copy(outFile, fileReader)
 		if err != nil {
-			return err
+			logger.Errorf("Error writing to file %s: %v", targetPath, err)
+			return nil // Continue with other files
 		}
 
-		// Set file permissions
-		return os.Chmod(targetPath, file.Mode())
+		logger.Debugf("Extracted file: %s", targetPath)
+		return nil
 	}
 
 	// Extract files from the tar archive
 	err = tar.Extract(context.Background(), input, nil, handler)
 	if err != nil {
+		logger.Errorf("Error extracting archive: %v", err)
 		return err
 	}
 
+	logger.Infof("Successfully extracted archive: %s", src)
 	return nil
 }

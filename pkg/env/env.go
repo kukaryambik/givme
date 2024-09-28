@@ -52,7 +52,9 @@ func SaveToFile(env []string, fileName string) error {
 	_, err = file.WriteString(content)
 	if err != nil {
 		file.Close()
-		os.Remove(fileName)
+		if err := os.Remove(fileName); err != nil {
+			return fmt.Errorf("error removing file %s: %v", fileName, err)
+		}
 		return fmt.Errorf("error writing to file %s: %v", fileName, err)
 	}
 

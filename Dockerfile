@@ -41,22 +41,22 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o givme ./cmd/givme
 # Final stage: Build the scratch-based image
 FROM scratch
 
-WORKDIR /workspace
+WORKDIR /givme
 
 # Copy BusyBox
-COPY --from=busybox /busybox /busybox
+COPY --from=busybox /busybox /givme/bin
 COPY --from=busybox /busybox/sh /bin/sh
 
 # Copy Certs
-COPY --from=certs /etc/ssl/certs /workspace/certs
+COPY --from=certs /etc/ssl/certs /givme/certs
 
 # Copy Givme
-COPY --from=givme /src/app/givme /workspace/givme
+COPY --from=givme /src/app/givme /givme/bin/givme
 
-ENV PATH="/busybox:/workspace" \
+ENV PATH="/givme/bin" \
     HOME="/root" \
     USER="root" \
-    SSL_CERT_DIR="/workspace/certs" \
-    GIVME_EXCLUDE="/busybox"
+    SSL_CERT_DIR="/givme/certs" \
+    GIVME_WORKDIR="/givme"
 
 ENTRYPOINT ["sh"]

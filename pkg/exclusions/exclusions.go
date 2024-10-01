@@ -10,7 +10,7 @@ import (
 
 var (
 	// Default values for systemExcludes
-	systemExclusions = []string{"/proc", "/sys", "/dev", "/run"}
+	systemExclusions = []string{"/proc", "/sys", "/dev", "/run", "/var/run"}
 )
 
 // Build generates a list of paths that should be excluded

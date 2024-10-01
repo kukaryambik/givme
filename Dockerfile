@@ -53,9 +53,10 @@ COPY --from=certs /etc/ssl/certs /workspace/certs
 # Copy Givme
 COPY --from=givme /src/app/givme /workspace/givme
 
-ENV PATH="/busybox" \
+ENV PATH="/busybox:/workspace" \
     HOME="/root" \
     USER="root" \
-    SSL_CERT_DIR="/workspace/certs"
+    SSL_CERT_DIR="/workspace/certs" \
+    GIVME_EXCLUDE="/busybox"
 
 ENTRYPOINT ["sh"]

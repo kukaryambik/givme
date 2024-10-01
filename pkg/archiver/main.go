@@ -12,7 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func Tar(logger *logrus.Logger, src []string, dst string) error {
+func Tar(src []string, dst string) error {
 	filesMap := make(map[string]string)
 	for _, srcPath := range src {
 		// Map source file paths, trimming leading slashes
@@ -22,14 +22,14 @@ func Tar(logger *logrus.Logger, src []string, dst string) error {
 	// Collect files from disk for archiving
 	files, err := archiver.FilesFromDisk(nil, filesMap)
 	if err != nil {
-		logger.Errorf("Error collecting files from disk: %v", err)
+		logrus.Errorf("Error collecting files from disk: %v", err)
 		return err
 	}
 
 	// Create the destination archive file
 	out, err := os.Create(dst)
 	if err != nil {
-		logger.Errorf("Error creating destination file %s: %v", dst, err)
+		logrus.Errorf("Error creating destination file %s: %v", dst, err)
 		return err
 	}
 	defer out.Close()
@@ -40,19 +40,19 @@ func Tar(logger *logrus.Logger, src []string, dst string) error {
 	// Archive the files to the output
 	err = tar.Archive(context.Background(), out, files)
 	if err != nil {
-		logger.Errorf("Error archiving files: %v", err)
+		logrus.Errorf("Error archiving files: %v", err)
 		return err
 	}
 
-	logger.Debugf("Successfully created tar archive: %s", dst)
+	logrus.Debugf("Successfully created tar archive: %s", dst)
 	return nil
 }
 
-func Untar(logger *logrus.Logger, src, dst string, excl []string) error {
+func Untar(src, dst string, excl []string) error {
 	// Open the source archive for reading
 	input, err := os.Open(src)
 	if err != nil {
-		logger.Errorf("Error opening source archive %s: %v", src, err)
+		logrus.Errorf("Error opening source archive %s: %v", src, err)
 		return err
 	}
 	defer input.Close()
@@ -72,19 +72,19 @@ func Untar(logger *logrus.Logger, src, dst string, excl []string) error {
 
 		// Skip excluded paths
 		if shouldExclude {
-			logger.Debugf("Skipping excluded path: %s", targetPath)
+			logrus.Debugf("Skipping excluded path: %s", targetPath)
 			return nil
 		}
 
 		// Handle symbolic links
 		if file.LinkTarget != "" {
-			logger.Debugf("Creating symbolic link for %s -> %s", targetPath, file.LinkTarget)
+			logrus.Debugf("Creating symbolic link for %s -> %s", targetPath, file.LinkTarget)
 			if err := os.RemoveAll(targetPath); err != nil {
-				logger.Errorf("Error removing existing file %s: %v", targetPath, err)
+				logrus.Errorf("Error removing existing file %s: %v", targetPath, err)
 				return err
 			}
 			if err := os.Symlink(file.LinkTarget, targetPath); err != nil {
-				logger.Errorf("Error creating symbolic link %s: %v", targetPath, err)
+				logrus.Errorf("Error creating symbolic link %s: %v", targetPath, err)
 				return err
 			}
 			return nil
@@ -92,9 +92,9 @@ func Untar(logger *logrus.Logger, src, dst string, excl []string) error {
 
 		// Create directories if needed
 		if file.IsDir() {
-			logger.Debugf("Creating directory: %s", targetPath)
+			logrus.Debugf("Creating directory: %s", targetPath)
 			if err := os.MkdirAll(targetPath, os.ModePerm); err != nil {
-				logger.Errorf("Error creating directory %s: %v", targetPath, err)
+				logrus.Errorf("Error creating directory %s: %v", targetPath, err)
 				return err
 			}
 			return os.Chmod(targetPath, file.Mode())
@@ -102,21 +102,21 @@ func Untar(logger *logrus.Logger, src, dst string, excl []string) error {
 
 		// Ensure parent directories exist
 		if err := os.MkdirAll(filepath.Dir(targetPath), os.ModePerm); err != nil {
-			logger.Errorf("Error creating parent directories for %s: %v", targetPath, err)
+			logrus.Errorf("Error creating parent directories for %s: %v", targetPath, err)
 			return err
 		}
 
 		// Open the file for writing, truncating it if it already exists
 		outFile, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, file.Mode())
 		if err != nil {
-			logger.Errorf("Error opening file %s for writing: %v", targetPath, err)
+			logrus.Errorf("Error opening file %s for writing: %v", targetPath, err)
 			return nil // Continue with other files
 		}
 		defer outFile.Close()
 
 		fileReader, err := file.Open()
 		if err != nil {
-			logger.Errorf("Error opening archive file %s: %v", file.NameInArchive, err)
+			logrus.Errorf("Error opening archive file %s: %v", file.NameInArchive, err)
 			return err
 		}
 		defer fileReader.Close()
@@ -124,21 +124,21 @@ func Untar(logger *logrus.Logger, src, dst string, excl []string) error {
 		// Copy file data from the archive to the target file
 		_, err = io.Copy(outFile, fileReader)
 		if err != nil {
-			logger.Errorf("Error writing to file %s: %v", targetPath, err)
+			logrus.Errorf("Error writing to file %s: %v", targetPath, err)
 			return nil // Continue with other files
 		}
 
-		logger.Debugf("Extracted file: %s", targetPath)
+		logrus.Debugf("Extracted file: %s", targetPath)
 		return nil
 	}
 
 	// Extract files from the tar archive
 	err = tar.Extract(context.Background(), input, nil, handler)
 	if err != nil {
-		logger.Errorf("Error extracting archive: %v", err)
+		logrus.Errorf("Error extracting archive: %v", err)
 		return err
 	}
 
-	logger.Debugf("Successfully extracted archive: %s", src)
+	logrus.Debugf("Successfully extracted archive: %s", src)
 	return nil
 }

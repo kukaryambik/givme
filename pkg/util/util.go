@@ -6,9 +6,33 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
+
+func MergeStructs(src, dst interface{}, overwrite ...bool) {
+	logrus.Debugf("Merging structs: %v, %v", &src, &dst)
+	srcVal := reflect.ValueOf(src).Elem() // Get Value for reading fields
+	dstVal := reflect.ValueOf(dst).Elem() // Get Value for setting fields
+
+	for i := 0; i < dstVal.NumField(); i++ {
+		srcField := srcVal.Field(i)
+		dstField := dstVal.Field(i)
+
+		// Check if the source field is not zero (non-empty)
+		if !srcField.IsZero() && dstField.CanSet() {
+			if len(overwrite) > 0 && overwrite[0] {
+				dstField.Set(srcField)
+			} else if dstField.IsZero() {
+				dstField.Set(srcField)
+			}
+		}
+	}
+	logrus.Debugf("Merged struct: %v", &dst)
+}
 
 // Slugify converts a string into a slug (URL-friendly format).
 func Slugify(s string) string {

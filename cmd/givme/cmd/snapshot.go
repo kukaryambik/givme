@@ -17,30 +17,30 @@ const (
 
 // Snapshot creates a tar archive of the rootfs directory, excluding
 // the directories specified in buildExclusions.
-func snapshot(rootfs, file, dotenv string, excl []string) error {
+func snapshot(conf *CommandOptions) error {
 	logrus.Debugf("Starting snapshot creation...")
-	logrus.Trace(rootfs, file, dotenv, excl)
+	logrus.Trace(conf)
 
 	// List all paths
 	var paths []string
-	if err := list.ListPaths(rootfs, excl, &paths); err != nil {
+	if err := list.ListPaths(conf.RootFS, conf.Exclusions, &paths); err != nil {
 		return err
 	}
 
 	// Check if the file already exists.
-	if _, err := os.Stat(file); err == nil {
-		logrus.Warnf("File %s already exists", file)
+	if _, err := os.Stat(conf.TarFile); err == nil {
+		logrus.Warnf("File %s already exists", conf.TarFile)
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("error checking file %s: %v", file, err)
+		return fmt.Errorf("error checking file %s: %v", conf.TarFile, err)
 	} else if os.IsNotExist(err) {
 		// Save all environment variables to the file
-		logrus.Debugf("Saving environment variables to %s", dotenv)
-		if err := envars.SaveToFile(os.Environ(), dotenv); err != nil {
-			return fmt.Errorf("error saving environment variables %s: %v", dotenv, err)
+		logrus.Debugf("Saving environment variables to %s", conf.DotenvFile)
+		if err := envars.SaveToFile(os.Environ(), conf.DotenvFile); err != nil {
+			return fmt.Errorf("error saving environment variables %s: %v", conf.DotenvFile, err)
 		}
 		// Create the tar archive
-		logrus.Debugf("Creating tar archive: %s", file)
-		if err := archiver.Tar(paths, file); err != nil {
+		logrus.Debugf("Creating tar archive: %s", conf.TarFile)
+		if err := archiver.Tar(paths, conf.TarFile); err != nil {
 			return err
 		}
 		logrus.Infoln("Snapshot has created!")

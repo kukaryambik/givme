@@ -8,12 +8,7 @@ import (
 )
 
 func load(conf *CommandOptions) error {
-	if err := snapshot(
-		conf.RootFS,
-		conf.TarFile,
-		conf.DotenvFile,
-		conf.Exclusions,
-	); err != nil {
+	if err := snapshot(conf); err != nil {
 		return err
 	}
 
@@ -31,7 +26,7 @@ func load(conf *CommandOptions) error {
 		return err
 	}
 
-	if err := cleanup(conf.RootFS, conf.Exclusions); err != nil {
+	if err := cleanup(conf); err != nil {
 		return err
 	}
 

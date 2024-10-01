@@ -96,14 +96,11 @@ var snapshotCmd = &cobra.Command{
 	Short: "Create a snapshot archive",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		util.MergeStructs(&rootConf, &snapshotConf)
+		snapshotConf.TarFile = filepath.Join(snapshotConf.Workdir, "snapshot.tar")
+		snapshotConf.DotenvFile = filepath.Join(snapshotConf.Workdir, ".env")
 	},
-	Run: func(cmd *cobra.Command, args []string) {
-		snapshot(
-			snapshotConf.RootFS,
-			snapshotConf.TarFile,
-			snapshotConf.DotenvFile,
-			snapshotConf.Exclusions,
-		)
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return snapshot(&snapshotConf)
 	},
 }
 
@@ -114,10 +111,7 @@ var restoreCmd = &cobra.Command{
 		util.MergeStructs(&rootConf, &restoreConf)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := restore(&restoreConf); err != nil {
-			return err
-		}
-		return nil
+		return restore(&restoreConf)
 	},
 }
 
@@ -127,11 +121,8 @@ var cleanupCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		util.MergeStructs(&rootConf, &cleanupConf)
 	},
-	Run: func(cmd *cobra.Command, args []string) {
-		cleanup(
-			cleanupConf.RootFS,
-			cleanupConf.Exclusions,
-		)
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return cleanup(&cleanupConf)
 	},
 }
 
@@ -141,9 +132,7 @@ var exportCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 	PreRun: func(cmd *cobra.Command, args []string) {
 		util.MergeStructs(&rootConf, &exportConf)
-
 		exportConf.Image = args[0]
-
 		imgSlug := util.Slugify(exportConf.Image)
 		exportConf.TarFile = filepath.Join(exportConf.Workdir, imgSlug+".tar")
 		exportConf.ConfigFile = filepath.Join(exportConf.Workdir, imgSlug+".json")
@@ -162,6 +151,8 @@ var loadCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		util.MergeStructs(&rootConf, &loadConf)
 		loadConf.Image = args[0]
+		loadConf.TarFile = filepath.Join(loadConf.Workdir, "snapshot.tar")
+		loadConf.DotenvFile = filepath.Join(loadConf.Workdir, ".env")
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return load(&loadConf)
@@ -170,8 +161,6 @@ var loadCmd = &cobra.Command{
 
 func addFlags() {
 	execdir := util.GetExecDir()
-	snapshotFile := filepath.Join(util.GetExecDir(), defaultSnapshotFile)
-	dotenvFile := filepath.Join(util.GetExecDir(), defaultDotenvFile)
 
 	// RootCmd flags
 	RootCmd.PersistentFlags().StringVar(
@@ -190,9 +179,9 @@ func addFlags() {
 
 	// snapshotCmd flags
 	snapshotCmd.Flags().StringVarP(
-		&snapshotConf.TarFile, "tar-file", "f", snapshotFile, "Path to the snapshot archive file")
+		&snapshotConf.TarFile, "tar-file", "f", "", "Path to the snapshot archive file")
 	snapshotCmd.Flags().StringVarP(
-		&snapshotConf.DotenvFile, "dotenv-file", "e", dotenvFile, "Path to the .env file")
+		&snapshotConf.DotenvFile, "dotenv-file", "e", "", "Path to the .env file")
 
 	// restoreCmd flags
 	restoreCmd.Flags().StringVarP(
@@ -211,7 +200,7 @@ func addFlags() {
 
 	// loadCmd flags
 	loadCmd.Flags().StringVarP(
-		&loadConf.TarFile, "tar-file", "f", snapshotFile, "Path to the snapshot archive file")
+		&loadConf.TarFile, "tar-file", "f", "", "Path to the snapshot archive file")
 	loadCmd.Flags().StringVarP(
-		&loadConf.DotenvFile, "dotenv-file", "e", dotenvFile, "Path to the .env file")
+		&loadConf.DotenvFile, "dotenv-file", "e", "", "Path to the .env file")
 }

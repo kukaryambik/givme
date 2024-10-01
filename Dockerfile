@@ -54,9 +54,10 @@ COPY --from=certs /etc/ssl/certs /givme/certs
 COPY --from=givme /src/app/givme /givme/bin/givme
 
 ENV PATH="/givme/bin" \
-    HOME="/root" \
+    HOME="/givme" \
     USER="root" \
     SSL_CERT_DIR="/givme/certs" \
-    GIVME_WORKDIR="/givme"
+    GIVME_WORKDIR="/givme" \
+    GIVME_EXCLUDE="/givme"
 
 ENTRYPOINT ["sh"]

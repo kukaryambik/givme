@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/kukaryambik/givme/pkg/exclusions"
@@ -73,6 +74,11 @@ var RootCmd = &cobra.Command{
 		}
 
 		logrus.Debugf("Config: %s", rootConf)
+
+		// Ensure the work directory exists.
+		if err := os.MkdirAll(rootConf.Workdir, 0755); err != nil {
+			logrus.Fatalf("Error creating work directory: %v", err)
+		}
 
 		// Build exclusions
 		if excl, err := exclusions.Build(rootConf.UserExclusions, rootConf.Workdir); err != nil {

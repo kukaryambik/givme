@@ -18,9 +18,9 @@ RUN set -eux \
   && make -j$(nproc)
 
 RUN set -eux \
-  && mkdir /busybox \
-  && cp /busybox-${BUSYBOX_VERSION}/busybox /busybox/busybox \
-  && /busybox/busybox --install /busybox
+  && mkdir /busybox-bin \
+  && cp /busybox-${BUSYBOX_VERSION}/busybox /busybox-bin/busybox \
+  && /busybox-bin/busybox --install /busybox-bin
 
 # Stage 2: Get certificates
 FROM alpine AS certs
@@ -44,8 +44,8 @@ FROM scratch
 WORKDIR /givme
 
 # Copy BusyBox
-COPY --from=busybox /busybox /givme/bin
-COPY --from=busybox /busybox/sh /bin/sh
+COPY --from=busybox /busybox-bin /givme/bin
+COPY --from=busybox /busybox-bin/sh /bin/sh
 
 # Copy Certs
 COPY --from=certs /etc/ssl/certs /givme/certs

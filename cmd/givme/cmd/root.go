@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kukaryambik/givme/pkg/exclusions"
 	"github.com/kukaryambik/givme/pkg/logging"
@@ -17,14 +18,16 @@ const (
 )
 
 type CommandOptions struct {
-	ConfigFile     string
-	DotenvFile     string
-	Exclusions     []string
-	Image          string
-	RootFS         string
-	TarFile        string
-	UserExclusions string
-	Workdir        string
+	ConfigFile       string
+	DotenvFile       string
+	Exclusions       []string
+	Image            string
+	RegistryUsername string
+	RegistryPassword string
+	RootFS           string
+	TarFile          string
+	UserExclusions   string
+	Workdir          string
 }
 
 var (
@@ -42,7 +45,8 @@ var (
 
 func init() {
 	viper.SetEnvPrefix(appName) // Environment variables prefixed with GIVME_
-	viper.AutomaticEnv()        // Automatically bind environment variables
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.AutomaticEnv() // Automatically bind environment variables
 
 	addFlags()
 
@@ -86,7 +90,6 @@ var RootCmd = &cobra.Command{
 		} else {
 			rootConf.Exclusions = excl
 		}
-
 		return nil
 	},
 }
@@ -137,6 +140,10 @@ var exportCmd = &cobra.Command{
 		exportConf.TarFile = filepath.Join(exportConf.Workdir, imgSlug+".tar")
 		exportConf.ConfigFile = filepath.Join(exportConf.Workdir, imgSlug+".json")
 		exportConf.DotenvFile = filepath.Join(exportConf.Workdir, imgSlug+".env")
+
+		viper.BindPFlags(cmd.Flags())
+		exportConf.RegistryUsername = viper.GetString("registry-username")
+		exportConf.RegistryPassword = viper.GetString("registry-password")
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		_, err := export(&exportConf)
@@ -153,6 +160,10 @@ var loadCmd = &cobra.Command{
 		loadConf.Image = args[0]
 		loadConf.TarFile = filepath.Join(loadConf.Workdir, "snapshot.tar")
 		loadConf.DotenvFile = filepath.Join(loadConf.Workdir, ".env")
+
+		viper.BindPFlags(cmd.Flags())
+		loadConf.RegistryUsername = viper.GetString("registry-username")
+		loadConf.RegistryPassword = viper.GetString("registry-password")
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return load(&loadConf)
@@ -197,10 +208,18 @@ func addFlags() {
 		&exportConf.ConfigFile, "config-file", "c", "", "Path to the config file")
 	exportCmd.Flags().StringVarP(
 		&exportConf.DotenvFile, "dotenv-file", "e", "", "Path to the .env file")
+	exportCmd.Flags().StringVar(
+		&exportConf.RegistryUsername, "registry-username", "", "Username for registry authentication")
+	exportCmd.Flags().StringVar(
+		&exportConf.RegistryPassword, "registry-password", "", "Password for registry authentication")
 
 	// loadCmd flags
 	loadCmd.Flags().StringVarP(
 		&loadConf.TarFile, "tar-file", "f", "", "Path to the snapshot archive file")
 	loadCmd.Flags().StringVarP(
 		&loadConf.DotenvFile, "dotenv-file", "e", "", "Path to the .env file")
+	loadCmd.Flags().StringVar(
+		&loadConf.RegistryUsername, "registry-username", "", "Username for registry authentication")
+	loadCmd.Flags().StringVar(
+		&loadConf.RegistryPassword, "registry-password", "", "Password for registry authentication")
 }

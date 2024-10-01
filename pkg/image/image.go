@@ -3,6 +3,7 @@ package image
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"encoding/json"
 
@@ -18,17 +19,50 @@ type Image struct {
 	Name  string
 }
 
-// getImage pulls the image using default Docker authentication.
-func Pull(image string) (*Image, error) {
+// Pull pulls the image using both provided credentials and the default keychain.
+func Pull(auth *authn.Basic, image string) (*Image, error) {
 	logrus.Debugf("Pulling image: %s", image)
-	authOption := crane.WithAuthFromKeychain(authn.DefaultKeychain)
-	img, err := crane.Pull(image, authOption)
-	if err != nil {
+
+	// Trying to pull the image with anonymous access
+	img, err := crane.Pull(image, crane.WithAuth(authn.Anonymous))
+	if err == nil {
+		logrus.Debugf("Successfully pulled image without credentials: %s", image)
+		return &Image{Image: img, Name: image}, nil
+	}
+
+	// Checking if the error is an authentication error
+	if !isUnauthorizedError(err) {
 		logrus.Errorf("Error pulling image %s: %v", image, err)
 		return nil, fmt.Errorf("error pulling image %s: %v", image, err)
 	}
-	logrus.Debugf("Successfully pulled image: %s", image)
-	return &Image{Image: img, Name: image}, nil
+
+	// If valid credentials are available, retry with them
+	if auth != nil && auth.Username != "" && auth.Password != "" {
+		logrus.Debugf("Retrying pulling image with credentials: %s", image)
+		basicAuth := authn.FromConfig(authn.AuthConfig{
+			Username: auth.Username,
+			Password: auth.Password,
+		})
+		img, err = crane.Pull(image, crane.WithAuth(basicAuth))
+		if err != nil {
+			logrus.Errorf("Error pulling image with credentials %s: %v", image, err)
+			return nil, fmt.Errorf("error pulling image with credentials %s: %v", image, err)
+		}
+		logrus.Debugf("Successfully pulled image with credentials: %s", image)
+		return &Image{Image: img, Name: image}, nil
+	}
+
+	// If no valid credentials are available or pulling with them failed
+	logrus.Errorf("Error pulling image %s: %v", image, err)
+	return nil, fmt.Errorf("error pulling image %s: %v", image, err)
+}
+
+// Helper function to check if the error is an authentication error
+func isUnauthorizedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "401 Unauthorized") || strings.Contains(err.Error(), "DENIED")
 }
 
 // GetFS pulls an image and exports its filesystem as a tarball to the given path.

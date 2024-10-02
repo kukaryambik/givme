@@ -1,6 +1,7 @@
 package archiver
 
 import (
+	"archive/tar"
 	"context"
 	"io"
 	"os"
@@ -58,7 +59,7 @@ func Untar(src, dst string, excl []string) error {
 	defer input.Close()
 
 	// Initialize the tar format
-	tar := archiver.Tar{ContinueOnError: true}
+	tarFormat := archiver.Tar{ContinueOnError: true}
 
 	// Define handler for extracting files from the archive
 	handler := func(ctx context.Context, file archiver.File) error {
@@ -78,14 +79,54 @@ func Untar(src, dst string, excl []string) error {
 
 		// Handle symbolic links
 		if file.LinkTarget != "" {
-			logrus.Debugf("Creating symbolic link for %s -> %s", targetPath, file.LinkTarget)
-			if err := os.RemoveAll(targetPath); err != nil {
-				logrus.Errorf("Error removing existing file %s: %v", targetPath, err)
-				return err
-			}
-			if err := os.Symlink(file.LinkTarget, targetPath); err != nil {
-				logrus.Errorf("Error creating symbolic link %s: %v", targetPath, err)
-				return err
+			// Get the original tar header
+			if hdr, ok := file.Sys().(*tar.Header); ok {
+				switch hdr.Typeflag {
+				case tar.TypeSymlink:
+					// Create a symbolic link
+					logrus.Debugf("Creating symbolic link: %s -> %s", targetPath, file.LinkTarget)
+					if err := os.RemoveAll(targetPath); err != nil {
+						logrus.Errorf("Error deleting existing file %s: %v", targetPath, err)
+						return err
+					}
+					if err := os.Symlink(file.LinkTarget, targetPath); err != nil {
+						logrus.Errorf("Error creating symbolic link %s: %v", targetPath, err)
+						return err
+					}
+				case tar.TypeLink:
+					// Create a hard link
+					logrus.Debugf("Creating hard link: %s -> %s", targetPath, file.LinkTarget)
+					if err := os.RemoveAll(targetPath); err != nil {
+						logrus.Errorf("Error deleting existing file %s: %v", targetPath, err)
+						return err
+					}
+					// Full path to the link target
+					linkTargetPath := filepath.Join(dst, file.LinkTarget)
+					if err := os.Link(linkTargetPath, targetPath); err != nil {
+						logrus.Errorf("Error creating hard link %s: %v", targetPath, err)
+						return err
+					}
+				default:
+					logrus.Warnf("Unknown link type for %s, defaulting to creating a symbolic link", targetPath)
+					if err := os.RemoveAll(targetPath); err != nil {
+						logrus.Errorf("Error deleting existing file %s: %v", targetPath, err)
+						return err
+					}
+					if err := os.Symlink(file.LinkTarget, targetPath); err != nil {
+						logrus.Errorf("Error creating symbolic link %s: %v", targetPath, err)
+						return err
+					}
+				}
+			} else {
+				logrus.Warnf("Failed to get tar header for %s, defaulting to creating a symbolic link", targetPath)
+				if err := os.RemoveAll(targetPath); err != nil {
+					logrus.Errorf("Error deleting existing file %s: %v", targetPath, err)
+					return err
+				}
+				if err := os.Symlink(file.LinkTarget, targetPath); err != nil {
+					logrus.Errorf("Error creating symbolic link %s: %v", targetPath, err)
+					return err
+				}
 			}
 			return nil
 		}
@@ -133,7 +174,7 @@ func Untar(src, dst string, excl []string) error {
 	}
 
 	// Extract files from the tar archive
-	err = tar.Extract(context.Background(), input, nil, handler)
+	err = tarFormat.Extract(context.Background(), input, nil, handler)
 	if err != nil {
 		logrus.Errorf("Error extracting archive: %v", err)
 		return err

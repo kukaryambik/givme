@@ -1,4 +1,5 @@
 # Givme
+
 _«Givme, givme more, givme more, givme, givme more!»_
 
 ## The main idea
@@ -14,6 +15,8 @@ Switch the image from inside the container.
 3. It can also be useful for debugging, as you only need to create a single container where you can change anything you want, from the image version to a completely different distribution.
 
 ## How to use
+
+### Examples
 
 ```sh
 docker run --rm -it --entrypoint sh ghcr.io/kukaryambik/givme:latest
@@ -46,12 +49,11 @@ curl --version
 
 ```
 
-## Commands and flags
-```
-Usage:
-  givme [command]
+### Commands and flags
 
 Available Commands:
+
+```
   cleanup     Clean up directories
   completion  Generate the autocompletion script for the specified shell
   export      Export container image tar and config
@@ -59,8 +61,11 @@ Available Commands:
   load        Load container image tar and apply it to the system
   restore     Restore from a snapshot archive
   snapshot    Create a snapshot archive
+```
 
-Flags:
+Global Flags:
+
+```
       --exclude string      Excluded directories
   -h, --help                help for givme
       --log-format string   Log format (text, color, json) (default "color")
@@ -68,4 +73,14 @@ Flags:
       --rootfs string       RootFS directory (default "/")
   -v, --verbosity string    Log level (trace, debug, info, warn, error, fatal, panic) (default "info")
       --workdir string      Working directory (default "/givme")
+```
+
+Commands Flags:
+
+```
+  -c, --config-file string         Path to the config file ( for export ) 
+  -e, --dotenv-file string         Path to the .env file ( for load, export, restore and snapshot )
+      --registry-password string   Password for registry authentication; available via GIVME_REGISTRY_PASSWORD
+      --registry-username string   Username for registry authentication; available via GIVME_REGISTRY_USERNAME
+  -f, --tar-file string            Path to the tar file ( for load, export, restore and snapshot )
 ```

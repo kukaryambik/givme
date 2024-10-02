@@ -44,16 +44,16 @@ FROM scratch
 WORKDIR /givme
 
 # Copy BusyBox
-COPY --from=busybox /busybox-bin /givme/bin
+COPY --from=busybox /busybox-bin /givme/busybox
 COPY --from=busybox /busybox-bin/sh /bin/sh
 
 # Copy Certs
 COPY --from=certs /etc/ssl/certs /givme/certs
 
 # Copy Givme
-COPY --from=givme /src/app/givme /givme/bin/givme
+COPY --from=givme /src/app/givme /givme/givme
 
-ENV PATH="/givme/bin" \
+ENV PATH="/givme:/givme/busybox" \
     HOME="/givme" \
     USER="root" \
     SSL_CERT_DIR="/givme/certs" \

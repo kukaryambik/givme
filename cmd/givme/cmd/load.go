@@ -26,10 +26,6 @@ func load(conf *CommandOptions) error {
 		return err
 	}
 
-	if err := cleanup(conf); err != nil {
-		return err
-	}
-
 	if err := restore(&CommandOptions{
 		TarFile:    imgTarFile,
 		DotenvFile: imgDotenvFile,

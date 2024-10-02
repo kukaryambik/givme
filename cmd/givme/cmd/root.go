@@ -98,9 +98,9 @@ var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
 	Short: "Create a snapshot archive",
 	PreRun: func(cmd *cobra.Command, args []string) {
+		rootConf.TarFile = filepath.Join(rootConf.Workdir, "snapshot.tar")
+		rootConf.DotenvFile = filepath.Join(rootConf.Workdir, ".env")
 		util.MergeStructs(&rootConf, &snapshotConf)
-		snapshotConf.TarFile = filepath.Join(snapshotConf.Workdir, "snapshot.tar")
-		snapshotConf.DotenvFile = filepath.Join(snapshotConf.Workdir, ".env")
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return snapshot(&snapshotConf)
@@ -134,12 +134,13 @@ var exportCmd = &cobra.Command{
 	Short: "Export container image tar and config",
 	Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 	PreRun: func(cmd *cobra.Command, args []string) {
+		rootConf.Image = args[0]
+		imgSlug := util.Slugify(rootConf.Image)
+		rootConf.TarFile = filepath.Join(exportConf.Workdir, imgSlug+".tar")
+		rootConf.ConfigFile = filepath.Join(exportConf.Workdir, imgSlug+".json")
+		rootConf.DotenvFile = filepath.Join(exportConf.Workdir, imgSlug+".env")
+
 		util.MergeStructs(&rootConf, &exportConf)
-		exportConf.Image = args[0]
-		imgSlug := util.Slugify(exportConf.Image)
-		exportConf.TarFile = filepath.Join(exportConf.Workdir, imgSlug+".tar")
-		exportConf.ConfigFile = filepath.Join(exportConf.Workdir, imgSlug+".json")
-		exportConf.DotenvFile = filepath.Join(exportConf.Workdir, imgSlug+".env")
 
 		viper.BindPFlags(cmd.Flags())
 		exportConf.RegistryUsername = viper.GetString("registry-username")
@@ -156,10 +157,11 @@ var loadCmd = &cobra.Command{
 	Short: "Load container image tar and apply it to the system",
 	Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 	PreRun: func(cmd *cobra.Command, args []string) {
+		rootConf.Image = args[0]
+		rootConf.TarFile = filepath.Join(loadConf.Workdir, "snapshot.tar")
+		rootConf.DotenvFile = filepath.Join(loadConf.Workdir, ".env")
+
 		util.MergeStructs(&rootConf, &loadConf)
-		loadConf.Image = args[0]
-		loadConf.TarFile = filepath.Join(loadConf.Workdir, "snapshot.tar")
-		loadConf.DotenvFile = filepath.Join(loadConf.Workdir, ".env")
 
 		viper.BindPFlags(cmd.Flags())
 		loadConf.RegistryUsername = viper.GetString("registry-username")

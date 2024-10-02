@@ -13,6 +13,10 @@ import (
 func restore(conf *CommandOptions) error {
 	logrus.Debugf("Restoring from archive: %s", conf.TarFile)
 
+	if err := cleanup(conf); err != nil {
+		return err
+	}
+
 	if err := archiver.Untar(conf.TarFile, conf.RootFS, conf.Exclusions); err != nil {
 		return err
 	}

@@ -45,3 +45,27 @@ eval $(/givme/givme restore -f alpine-snapshot.tar -e alpine-snapshot.env)
 curl --version
 
 ```
+
+## Commands and flags
+```
+Usage:
+  givme [command]
+
+Available Commands:
+  cleanup     Clean up directories
+  completion  Generate the autocompletion script for the specified shell
+  export      Export container image tar and config
+  help        Help about any command
+  load        Load container image tar and apply it to the system
+  restore     Restore from a snapshot archive
+  snapshot    Create a snapshot archive
+
+Flags:
+      --exclude string      Excluded directories
+  -h, --help                help for givme
+      --log-format string   Log format (text, color, json) (default "color")
+      --log-timestamp       Timestamp in log output
+      --rootfs string       RootFS directory (default "/")
+  -v, --verbosity string    Log level (trace, debug, info, warn, error, fatal, panic) (default "info")
+      --workdir string      Working directory (default "/givme")
+```

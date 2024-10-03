@@ -117,10 +117,10 @@ func (img *Image) GetEnv() ([]string, error) {
 }
 
 // GetConfig pulls an image and returns its config
-func (img *Image) GetConfig(file ...string) (*v1.ConfigFile, error) {
+func (img *Image) GetConfig(file ...string) (v1.ConfigFile, error) {
 	logrus.Debugf("Fetching environment variables for image: %s", img.Name)
 
-	var config *v1.ConfigFile
+	var config v1.ConfigFile
 
 	if len(file) > 0 {
 		// Check if file already exists.
@@ -133,7 +133,8 @@ func (img *Image) GetConfig(file ...string) (*v1.ConfigFile, error) {
 				logrus.Warnf("Error reading file %s: %v", file, err)
 			} else {
 				// Unmarshal the file
-				if err := json.Unmarshal(jsonData, config); err != nil {
+				if err := json.Unmarshal(jsonData, &config); err != nil {
+					logrus.Trace(string(jsonData))
 					logrus.Warnf("Error unmarshalling file %s: %v", file, err)
 				} else {
 					return config, nil
@@ -145,11 +146,12 @@ func (img *Image) GetConfig(file ...string) (*v1.ConfigFile, error) {
 	}
 
 	// Get the config file of the image
-	config, err := img.Image.ConfigFile()
+	configPtr, err := img.Image.ConfigFile()
 	if err != nil {
 		logrus.Errorf("Error fetching config file for image %s: %v", img.Name, err)
 		return config, fmt.Errorf("error fetching config file for image %s: %v", img.Name, err)
 	}
+	config = *configPtr
 
 	logrus.Debugf("Successfully fetched config file for image: %s", img.Name)
 

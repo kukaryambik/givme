@@ -19,7 +19,7 @@ Switch the image from inside the container.
 ### Examples
 
 ```sh
-docker run --rm -it --entrypoint sh ghcr.io/kukaryambik/givme:latest
+docker run --rm -it ghcr.io/kukaryambik/givme:latest
 
 eval $(/givme/givme load curlimages/curl)
 
@@ -34,7 +34,7 @@ docker version
 Or even like this:
 
 ```sh
-docker run --rm -it --entrypoint sh ghcr.io/kukaryambik/givme:latest
+docker run --rm -it ghcr.io/kukaryambik/givme:latest
 
 eval $(/givme/givme load alpine)
 apk add --no-cache curl

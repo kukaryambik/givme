@@ -158,8 +158,10 @@ var loadCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 	PreRun: func(cmd *cobra.Command, args []string) {
 		rootConf.Image = args[0]
-		rootConf.TarFile = filepath.Join(loadConf.Workdir, "snapshot.tar")
-		rootConf.DotenvFile = filepath.Join(loadConf.Workdir, ".env")
+		imgSlug := util.Slugify(rootConf.Image)
+		rootConf.TarFile = filepath.Join(exportConf.Workdir, imgSlug+".tar")
+		rootConf.ConfigFile = filepath.Join(exportConf.Workdir, imgSlug+".json")
+		rootConf.DotenvFile = filepath.Join(exportConf.Workdir, imgSlug+".env")
 
 		util.MergeStructs(&rootConf, &loadConf)
 
@@ -217,7 +219,9 @@ func addFlags() {
 
 	// loadCmd flags
 	loadCmd.Flags().StringVarP(
-		&loadConf.TarFile, "tar-file", "f", "", "Path to the snapshot archive file")
+		&loadConf.TarFile, "tar-file", "f", "", "Path to the tar file")
+	loadCmd.Flags().StringVarP(
+		&loadConf.ConfigFile, "config-file", "c", "", "Path to the config file")
 	loadCmd.Flags().StringVarP(
 		&loadConf.DotenvFile, "dotenv-file", "e", "", "Path to the .env file")
 	loadCmd.Flags().StringVar(

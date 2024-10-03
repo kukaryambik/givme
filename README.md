@@ -32,6 +32,7 @@ docker version
 ```
 
 Or even like this:
+
 ```sh
 docker run --rm -it --entrypoint sh ghcr.io/kukaryambik/givme:latest
 

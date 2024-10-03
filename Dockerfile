@@ -17,10 +17,7 @@ RUN set -eux \
   && yes "" | make oldconfig \
   && make -j$(nproc)
 
-RUN set -eux \
-  && mkdir /busybox-bin \
-  && cp /busybox-${BUSYBOX_VERSION}/busybox /busybox-bin/busybox \
-  && /busybox-bin/busybox --install /busybox-bin
+RUN cp /busybox-${BUSYBOX_VERSION}/busybox /busybox-bin
 
 # Stage 2: Get certificates
 FROM alpine AS certs
@@ -41,23 +38,30 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o givme ./cmd/givme
 # Final stage: Build the scratch-based image
 FROM scratch
 
-WORKDIR /givme
-
-# Copy BusyBox
-COPY --from=busybox /busybox-bin /givme/busybox
-COPY --from=busybox /busybox-bin/sh /bin/sh
-
-# Copy Certs
-COPY --from=certs /etc/ssl/certs /givme/certs
-
-# Copy Givme
-COPY --from=givme /src/app/givme /givme/givme
-
-ENV PATH="/givme:/givme/busybox" \
+ENV PATH="/bin:/givme:/givme/busybox" \
     HOME="/givme" \
     USER="root" \
     SSL_CERT_DIR="/givme/certs" \
     GIVME_WORKDIR="/givme" \
     GIVME_EXCLUDE="/givme"
+
+WORKDIR /givme
+
+# Copy BusyBox
+COPY --from=busybox /busybox-bin /givme/busybox/busybox
+
+SHELL [ "/givme/busybox/busybox", "sh", "-c" ]
+
+# Busybox install
+RUN set -eux \
+  && /givme/busybox/busybox --install /givme/busybox/ \
+  && mkdir /bin \
+  && ln /givme/busybox/sh /bin/sh
+
+# Copy Certs
+COPY --from=certs /etc/ssl/certs $SSL_CERT_DIR
+
+# Copy Givme
+COPY --from=givme /src/app/givme /givme/givme
 
 ENTRYPOINT ["sh"]

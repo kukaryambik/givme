@@ -45,6 +45,10 @@ ENV PATH="/bin:/givme:/givme/busybox" \
     GIVME_WORKDIR="/givme" \
     GIVME_EXCLUDE="/givme"
 
+ENV GIVME_PATH="$PATH"
+
+VOLUME [ "/givme" ]
+
 WORKDIR /givme
 
 # Copy BusyBox

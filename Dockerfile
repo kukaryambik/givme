@@ -60,7 +60,7 @@ SHELL [ "/givme/busybox/busybox", "sh", "-c" ]
 RUN set -eux \
   && /givme/busybox/busybox --install /givme/busybox/ \
   && mkdir /bin \
-  && ln /givme/busybox/sh /bin/sh
+  && ln -s /givme/busybox/sh /bin/sh
 
 # Copy Certs
 COPY --from=certs /etc/ssl/certs $SSL_CERT_DIR

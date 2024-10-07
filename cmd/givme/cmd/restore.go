@@ -21,7 +21,7 @@ func restore(conf *CommandOptions) error {
 		return err
 	}
 
-	if conf.DotenvFile != "" {
+	if conf.DotenvFile != "" && conf.Eval {
 		f, err := os.ReadFile(conf.DotenvFile)
 		if err != nil {
 			return err

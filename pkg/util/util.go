@@ -136,3 +136,12 @@ func IsDirEmpty(dir string) (bool, error) {
 	}
 	return false, err
 }
+
+// IsFileExists checks if the specified file exists.
+func IsFileExists(path string) bool {
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return err == nil
+}

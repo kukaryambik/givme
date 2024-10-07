@@ -23,14 +23,16 @@ const (
 )
 
 // Configure sets the logrus logging level and formatter
-func Configure(level, format string, logTimestamp bool) error {
+func Configure(level, format string, logTimestamp, stderr bool) error {
 	lvl, err := logrus.ParseLevel(level)
 	if err != nil {
 		return errors.Wrap(err, "parsing log level")
 	}
 	logrus.SetLevel(lvl)
 
-	logrus.SetOutput(os.Stderr)
+	if stderr {
+		logrus.SetOutput(os.Stderr)
+	}
 
 	var formatter logrus.Formatter
 	switch format {

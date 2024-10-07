@@ -61,30 +61,29 @@ Available Commands:
   help        Help about any command
   load        Load container image tar and apply it to the system
   restore     Restore from a snapshot archive
+  save        Save image to tar archive
   snapshot    Create a snapshot archive
 ```
 
 Global Flags:
 
 ```
-      --exclude string      Excluded directories
-  -h, --help                help for givme
-      --log-format string   Log format (text, color, json) (default "color")
-      --log-timestamp       Timestamp in log output
-      --rootfs string       RootFS directory (default "/")
-  -v, --verbosity string    Log level (trace, debug, info, warn, error, fatal, panic) (default "info")
-      --workdir string      Working directory (default "/givme")
-  -e, --eval bool           Output might be evaluated
-```
+  -e, --eval                       Output might be evaluated
+      --exclude string             Excluded directories; or use GIVME_EXCLUDE
+  -h, --help                       help for givme
+      --log-format string          Log format (text, color, json) (default "color")
+      --log-timestamp              Timestamp in log output
+      --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
+      --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
+      --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
+      --rootfs string              RootFS directory; or use GIVME_ROOTFS (default "/")
+  -f, --tar-file string            Path to the tar file
+  -v, --verbosity string           Log level (trace, debug, info, warn, error, fatal, panic) (default "info")
+      --workdir string             Working directory; or use GIVME_WORKDIR (default "/givme")
 
-Commands Flags:
+  # Only for some commands
+  -d, --dotenv-file string         Path to the .env file ( for export, restore and snapshot )
 
-```
-  -c, --config-file string         Path to the config file ( for export ) 
-  -d, --dotenv-file string         Path to the .env file ( for load, export, restore and snapshot )
-      --registry-password string   Password for registry authentication; available via GIVME_REGISTRY_PASSWORD
-      --registry-username string   Username for registry authentication; available via GIVME_REGISTRY_USERNAME
-  -f, --tar-file string            Path to the tar file ( for load, export, restore and snapshot )
 ```
 
 ## TODO

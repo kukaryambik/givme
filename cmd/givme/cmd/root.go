@@ -19,12 +19,12 @@ const (
 )
 
 type CommandOptions struct {
-	ConfigFile       string
 	DotenvFile       string
 	Exclusions       []string
 	Image            string
 	RegistryUsername string
 	RegistryPassword string
+	RegistryMirror   string
 	RootFS           string
 	TarFile          string
 	UserExclusions   string
@@ -37,12 +37,13 @@ var (
 	logFormat    string
 	logTimestamp bool
 
-	rootConf     CommandOptions
-	snapshotConf CommandOptions
-	restoreConf  CommandOptions
 	cleanupConf  CommandOptions
 	exportConf   CommandOptions
 	loadConf     CommandOptions
+	restoreConf  CommandOptions
+	rootConf     CommandOptions
+	saveConf     CommandOptions
+	snapshotConf CommandOptions
 )
 
 func init() {
@@ -58,10 +59,11 @@ func init() {
 	// Add subcommands for snapshot, restore, and cleanup.
 	RootCmd.AddCommand(
 		cleanupCmd,
-		snapshotCmd,
-		restoreCmd,
 		exportCmd,
 		loadCmd,
+		restoreCmd,
+		saveCmd,
+		snapshotCmd,
 	)
 }
 
@@ -72,10 +74,13 @@ var RootCmd = &cobra.Command{
 		rootConf.Workdir = viper.GetString("workdir")
 		rootConf.RootFS = viper.GetString("rootfs")
 		rootConf.UserExclusions = viper.GetString("exclude")
+		rootConf.RegistryMirror = viper.GetString("registry-mirror")
+		rootConf.RegistryUsername = viper.GetString("registry-username")
+		rootConf.RegistryPassword = viper.GetString("registry-password")
 		logLevel = viper.GetString("verbosity")
 
 		// Set up logging
-		if err := logging.Configure(logLevel, logFormat, logTimestamp); err != nil {
+		if err := logging.Configure(logLevel, logFormat, logTimestamp, rootConf.Eval); err != nil {
 			return err
 		}
 
@@ -133,6 +138,21 @@ var cleanupCmd = &cobra.Command{
 	},
 }
 
+var saveCmd = &cobra.Command{
+	Use:   "save",
+	Short: "Save image to tar archive",
+	PreRun: func(cmd *cobra.Command, args []string) {
+		rootConf.Image = args[0]
+		imgSlug := util.Slugify(rootConf.Image)
+		rootConf.TarFile = filepath.Join(rootConf.Workdir, imgSlug+".tar")
+		util.MergeStructs(&rootConf, &saveConf)
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		_, err := save(&saveConf)
+		return err
+	},
+}
+
 var exportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "Export container image tar and config",
@@ -140,19 +160,13 @@ var exportCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		rootConf.Image = args[0]
 		imgSlug := util.Slugify(rootConf.Image)
-		rootConf.TarFile = filepath.Join(exportConf.Workdir, imgSlug+".tar")
-		rootConf.ConfigFile = filepath.Join(exportConf.Workdir, imgSlug+".json")
-		rootConf.DotenvFile = filepath.Join(exportConf.Workdir, imgSlug+".env")
+		rootConf.TarFile = filepath.Join(rootConf.Workdir, imgSlug+".tar")
+		rootConf.DotenvFile = filepath.Join(rootConf.Workdir, imgSlug+".env")
 
 		util.MergeStructs(&rootConf, &exportConf)
-
-		viper.BindPFlags(cmd.Flags())
-		exportConf.RegistryUsername = viper.GetString("registry-username")
-		exportConf.RegistryPassword = viper.GetString("registry-password")
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		_, err := export(&exportConf)
-		return err
+		return export(&exportConf)
 	},
 }
 
@@ -163,15 +177,8 @@ var loadCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		rootConf.Image = args[0]
 		imgSlug := util.Slugify(rootConf.Image)
-		rootConf.TarFile = filepath.Join(exportConf.Workdir, imgSlug+".tar")
-		rootConf.ConfigFile = filepath.Join(exportConf.Workdir, imgSlug+".json")
-		rootConf.DotenvFile = filepath.Join(exportConf.Workdir, imgSlug+".env")
-
+		rootConf.TarFile = filepath.Join(rootConf.Workdir, imgSlug+".tar")
 		util.MergeStructs(&rootConf, &loadConf)
-
-		viper.BindPFlags(cmd.Flags())
-		loadConf.RegistryUsername = viper.GetString("registry-username")
-		loadConf.RegistryPassword = viper.GetString("registry-password")
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := load(&loadConf)
@@ -187,55 +194,51 @@ func addFlags() {
 
 	// RootCmd flags
 	RootCmd.PersistentFlags().StringVar(
-		&rootConf.RootFS, "rootfs", "/", "RootFS directory")
+		&rootConf.RootFS, "rootfs", "/", "RootFS directory; or use GIVME_ROOTFS")
 	RootCmd.PersistentFlags().StringVar(
-		&rootConf.Workdir, "workdir", execdir, "Working directory")
+		&rootConf.Workdir, "workdir", execdir, "Working directory; or use GIVME_WORKDIR")
 	RootCmd.PersistentFlags().StringVar(
-		&rootConf.UserExclusions, "exclude", "", "Excluded directories")
+		&rootConf.UserExclusions, "exclude", "", "Excluded directories; or use GIVME_EXCLUDE")
 	RootCmd.PersistentFlags().BoolVarP(
-		&rootConf.Eval, "eval", "e", logging.DefaultLogTimestamp, "Output might be evaluated")
+		&rootConf.Eval, "eval", "e", false, "Output might be evaluated")
+	RootCmd.Flags().StringVarP(
+		&rootConf.TarFile, "tar-file", "f", "", "Path to the tar file")
+	RootCmd.PersistentFlags().StringVar(
+		&rootConf.RegistryMirror, "registry-mirror", "",
+		"Registry mirror; or use GIVME_REGISTRY_MIRROR",
+	)
+	RootCmd.PersistentFlags().StringVar(
+		&exportConf.RegistryUsername, "registry-username", "",
+		"Username for registry authentication; or use GIVME_REGISTRY_USERNAME",
+	)
+	RootCmd.PersistentFlags().StringVar(
+		&exportConf.RegistryPassword, "registry-password", "",
+		"Password for registry authentication; or use GIVME_REGISTRY_PASSWORD",
+	)
 	// Logging flags
 	RootCmd.PersistentFlags().StringVarP(
-		&logLevel, "verbosity", "v", logging.DefaultLevel, "Log level (trace, debug, info, warn, error, fatal, panic)")
+		&logLevel, "verbosity", "v", logging.DefaultLevel,
+		"Log level (trace, debug, info, warn, error, fatal, panic)",
+	)
 	RootCmd.PersistentFlags().StringVar(
-		&logFormat, "log-format", logging.FormatColor, "Log format (text, color, json)")
+		&logFormat, "log-format", logging.FormatColor,
+		"Log format (text, color, json)",
+	)
 	RootCmd.PersistentFlags().BoolVar(
-		&logTimestamp, "log-timestamp", logging.DefaultLogTimestamp, "Timestamp in log output")
+		&logTimestamp, "log-timestamp", logging.DefaultLogTimestamp,
+		"Timestamp in log output",
+	)
 
 	// snapshotCmd flags
-	snapshotCmd.Flags().StringVarP(
-		&snapshotConf.TarFile, "tar-file", "f", "", "Path to the snapshot archive file")
 	snapshotCmd.Flags().StringVarP(
 		&snapshotConf.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
 
 	// restoreCmd flags
-	restoreCmd.Flags().StringVarP(
-		&restoreConf.TarFile, "tar-file", "f", "", "Path to the snapshot archive file")
 	restoreCmd.MarkFlagRequired("tar-file")
 	restoreCmd.Flags().StringVarP(
 		&restoreConf.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
 
 	// exportCmd flags
 	exportCmd.Flags().StringVarP(
-		&exportConf.TarFile, "tar-file", "f", "", "Path to the tar file")
-	exportCmd.Flags().StringVarP(
-		&exportConf.ConfigFile, "config-file", "c", "", "Path to the config file")
-	exportCmd.Flags().StringVarP(
 		&exportConf.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
-	exportCmd.Flags().StringVar(
-		&exportConf.RegistryUsername, "registry-username", "", "Username for registry authentication")
-	exportCmd.Flags().StringVar(
-		&exportConf.RegistryPassword, "registry-password", "", "Password for registry authentication")
-
-	// loadCmd flags
-	loadCmd.Flags().StringVarP(
-		&loadConf.TarFile, "tar-file", "f", "", "Path to the tar file")
-	loadCmd.Flags().StringVarP(
-		&loadConf.ConfigFile, "config-file", "c", "", "Path to the config file")
-	loadCmd.Flags().StringVarP(
-		&loadConf.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
-	loadCmd.Flags().StringVar(
-		&loadConf.RegistryUsername, "registry-username", "", "Username for registry authentication")
-	loadCmd.Flags().StringVar(
-		&loadConf.RegistryPassword, "registry-password", "", "Password for registry authentication")
 }

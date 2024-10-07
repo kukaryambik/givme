@@ -85,3 +85,8 @@ Commands Flags:
       --registry-username string   Username for registry authentication; available via GIVME_REGISTRY_USERNAME
   -f, --tar-file string            Path to the tar file ( for load, export, restore and snapshot )
 ```
+
+## TODO
+
+[] Add volumes
+[] Chroot (or something like this) as an option

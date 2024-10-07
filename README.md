@@ -88,5 +88,5 @@ Commands Flags:
 
 ## TODO
 
-[] Add volumes
-[] Chroot (or something like this) as an option
+- [ ] Add volumes
+- [ ] Chroot (or something like this) as an option

@@ -74,13 +74,14 @@ Global Flags:
       --rootfs string       RootFS directory (default "/")
   -v, --verbosity string    Log level (trace, debug, info, warn, error, fatal, panic) (default "info")
       --workdir string      Working directory (default "/givme")
+  -e, --eval bool           Output might be evaluated
 ```
 
 Commands Flags:
 
 ```
   -c, --config-file string         Path to the config file ( for export ) 
-  -e, --dotenv-file string         Path to the .env file ( for load, export, restore and snapshot )
+  -d, --dotenv-file string         Path to the .env file ( for load, export, restore and snapshot )
       --registry-password string   Password for registry authentication; available via GIVME_REGISTRY_PASSWORD
       --registry-username string   Username for registry authentication; available via GIVME_REGISTRY_USERNAME
   -f, --tar-file string            Path to the tar file ( for load, export, restore and snapshot )
@@ -90,3 +91,4 @@ Commands Flags:
 
 - [ ] Add volumes
 - [ ] Chroot (or something like this) as an option
+- [ ] Retry for docker pull

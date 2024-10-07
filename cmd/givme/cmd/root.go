@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,7 @@ type CommandOptions struct {
 	TarFile          string
 	UserExclusions   string
 	Workdir          string
+	Eval             bool
 }
 
 var (
@@ -77,8 +79,6 @@ var RootCmd = &cobra.Command{
 			return err
 		}
 
-		logrus.Debugf("Config: %s", rootConf)
-
 		// Ensure the work directory exists.
 		if err := os.MkdirAll(rootConf.Workdir, 0755); err != nil {
 			logrus.Fatalf("Error creating work directory: %v", err)
@@ -114,7 +114,11 @@ var restoreCmd = &cobra.Command{
 		util.MergeStructs(&rootConf, &restoreConf)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return restore(&restoreConf)
+		err := restore(&restoreConf)
+		if err != nil && restoreConf.Eval {
+			fmt.Print("false")
+		}
+		return err
 	},
 }
 
@@ -170,7 +174,11 @@ var loadCmd = &cobra.Command{
 		loadConf.RegistryPassword = viper.GetString("registry-password")
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return load(&loadConf)
+		err := load(&loadConf)
+		if err != nil && loadConf.Eval {
+			fmt.Print("false")
+		}
+		return err
 	},
 }
 
@@ -184,6 +192,8 @@ func addFlags() {
 		&rootConf.Workdir, "workdir", execdir, "Working directory")
 	RootCmd.PersistentFlags().StringVar(
 		&rootConf.UserExclusions, "exclude", "", "Excluded directories")
+	RootCmd.PersistentFlags().BoolVarP(
+		&rootConf.Eval, "eval", "e", logging.DefaultLogTimestamp, "Output might be evaluated")
 	// Logging flags
 	RootCmd.PersistentFlags().StringVarP(
 		&logLevel, "verbosity", "v", logging.DefaultLevel, "Log level (trace, debug, info, warn, error, fatal, panic)")
@@ -196,14 +206,14 @@ func addFlags() {
 	snapshotCmd.Flags().StringVarP(
 		&snapshotConf.TarFile, "tar-file", "f", "", "Path to the snapshot archive file")
 	snapshotCmd.Flags().StringVarP(
-		&snapshotConf.DotenvFile, "dotenv-file", "e", "", "Path to the .env file")
+		&snapshotConf.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
 
 	// restoreCmd flags
 	restoreCmd.Flags().StringVarP(
 		&restoreConf.TarFile, "tar-file", "f", "", "Path to the snapshot archive file")
 	restoreCmd.MarkFlagRequired("tar-file")
 	restoreCmd.Flags().StringVarP(
-		&restoreConf.DotenvFile, "dotenv-file", "e", "", "Path to the .env file")
+		&restoreConf.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
 
 	// exportCmd flags
 	exportCmd.Flags().StringVarP(
@@ -211,7 +221,7 @@ func addFlags() {
 	exportCmd.Flags().StringVarP(
 		&exportConf.ConfigFile, "config-file", "c", "", "Path to the config file")
 	exportCmd.Flags().StringVarP(
-		&exportConf.DotenvFile, "dotenv-file", "e", "", "Path to the .env file")
+		&exportConf.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
 	exportCmd.Flags().StringVar(
 		&exportConf.RegistryUsername, "registry-username", "", "Username for registry authentication")
 	exportCmd.Flags().StringVar(
@@ -223,7 +233,7 @@ func addFlags() {
 	loadCmd.Flags().StringVarP(
 		&loadConf.ConfigFile, "config-file", "c", "", "Path to the config file")
 	loadCmd.Flags().StringVarP(
-		&loadConf.DotenvFile, "dotenv-file", "e", "", "Path to the .env file")
+		&loadConf.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
 	loadCmd.Flags().StringVar(
 		&loadConf.RegistryUsername, "registry-username", "", "Username for registry authentication")
 	loadCmd.Flags().StringVar(

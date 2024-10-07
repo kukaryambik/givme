@@ -103,8 +103,8 @@ var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
 	Short: "Create a snapshot archive",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		rootConf.TarFile = filepath.Join(rootConf.Workdir, "snapshot.tar")
-		rootConf.DotenvFile = filepath.Join(rootConf.Workdir, ".env")
+		rootConf.TarFile = filepath.Join(rootConf.Workdir, defaultSnapshotName+".tar")
+		rootConf.DotenvFile = filepath.Join(rootConf.Workdir, defaultSnapshotName+".env")
 		util.MergeStructs(&rootConf, &snapshotConf)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {

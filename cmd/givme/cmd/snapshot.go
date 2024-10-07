@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/kukaryambik/givme/pkg/archiver"
 	"github.com/kukaryambik/givme/pkg/envars"
@@ -10,10 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	defaultSnapshotFile = "snapshot.tar"
-	defaultDotenvFile   = ".env"
-)
+var defaultSnapshotName = "snapshot_" + time.Now().Format("20060102150405")
 
 // Snapshot creates a tar archive of the rootfs directory, excluding
 // the directories specified in buildExclusions.
@@ -43,7 +41,7 @@ func snapshot(conf *CommandOptions) error {
 		if err := archiver.Tar(paths, conf.TarFile); err != nil {
 			return err
 		}
-		logrus.Infoln("Snapshot has created!")
+		logrus.Infof("Snapshot has created!\n\ttarball: %s\n\tdotenv: %s", conf.TarFile, conf.DotenvFile)
 	}
 	return nil
 }

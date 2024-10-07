@@ -47,8 +47,6 @@ ENV PATH="/bin:/givme:/givme/busybox" \
 
 ENV GIVME_PATH="$PATH"
 
-VOLUME [ "/givme" ]
-
 WORKDIR /givme
 
 # Copy BusyBox
@@ -60,12 +58,14 @@ SHELL [ "/givme/busybox/busybox", "sh", "-c" ]
 RUN set -eux \
   && /givme/busybox/busybox --install /givme/busybox/ \
   && mkdir /bin \
-  && ln -s /givme/busybox/sh /bin/sh
+  && ln /givme/busybox/sh /bin/sh
 
 # Copy Certs
 COPY --from=certs /etc/ssl/certs $SSL_CERT_DIR
 
 # Copy Givme
 COPY --from=givme /src/app/givme /givme/givme
+
+VOLUME [ "/givme" ]
 
 ENTRYPOINT ["sh"]

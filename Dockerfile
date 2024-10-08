@@ -61,7 +61,7 @@ RUN set -eux \
   && ln /givme/busybox/sh /bin/sh
 
 # Copy Certs
-COPY --from=certs /etc/ssl/certs $SSL_CERT_DIR
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt $SSL_CERT_DIR/ca-certificates.crt
 
 # Copy Givme
 COPY --from=givme /src/app/givme /givme/givme

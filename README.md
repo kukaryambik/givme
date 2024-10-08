@@ -76,6 +76,7 @@ Global Flags:
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
       --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
+      --retry int                  Retry attempts of saving the image; or use GIVME_RETRY
       --rootfs string              RootFS directory; or use GIVME_ROOTFS (default "/")
   -f, --tar-file string            Path to the tar file
   -v, --verbosity string           Log level (trace, debug, info, warn, error, fatal, panic) (default "info")

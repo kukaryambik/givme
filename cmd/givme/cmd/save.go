@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/kukaryambik/givme/pkg/util"
@@ -20,6 +23,13 @@ func save(conf *CommandOptions) (*image.Image, error) {
 		img, err := image.Pull(auth, conf.Image, conf.RegistryMirror)
 		if err != nil {
 			return nil, err
+		}
+
+		err = util.Retry(conf.Retry, 5*time.Second, func() error {
+			return img.Save(conf.TarFile)
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error saving image to tar file %s: %v", conf.TarFile, err)
 		}
 
 		if err := img.Save(conf.TarFile); err != nil {

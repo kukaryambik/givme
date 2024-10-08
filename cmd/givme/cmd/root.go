@@ -25,6 +25,7 @@ type CommandOptions struct {
 	RegistryUsername string
 	RegistryPassword string
 	RegistryMirror   string
+	Retry            int
 	RootFS           string
 	TarFile          string
 	UserExclusions   string
@@ -77,6 +78,7 @@ var RootCmd = &cobra.Command{
 		rootConf.RegistryMirror = viper.GetString("registry-mirror")
 		rootConf.RegistryUsername = viper.GetString("registry-username")
 		rootConf.RegistryPassword = viper.GetString("registry-password")
+		rootConf.Retry = viper.GetInt("retry")
 		logLevel = viper.GetString("verbosity")
 
 		// Set up logging
@@ -201,8 +203,10 @@ func addFlags() {
 		&rootConf.UserExclusions, "exclude", "", "Excluded directories; or use GIVME_EXCLUDE")
 	RootCmd.PersistentFlags().BoolVarP(
 		&rootConf.Eval, "eval", "e", false, "Output might be evaluated")
-	RootCmd.Flags().StringVarP(
+	RootCmd.PersistentFlags().StringVarP(
 		&rootConf.TarFile, "tar-file", "f", "", "Path to the tar file")
+	RootCmd.PersistentFlags().IntVar(
+		&rootConf.Retry, "retry", 0, "Retry attempts of saving the image; or use GIVME_RETRY")
 	RootCmd.PersistentFlags().StringVar(
 		&rootConf.RegistryMirror, "registry-mirror", "",
 		"Registry mirror; or use GIVME_REGISTRY_MIRROR",

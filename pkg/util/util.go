@@ -9,9 +9,27 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
+
+// Retry attempts to execute a function multiple times with delay between attempts
+func Retry(attempts int, sleep time.Duration, fn func() error) error {
+	var err error
+	for i := 1; i <= attempts; i++ {
+		if err = fn(); err == nil {
+			return nil
+		}
+
+		logrus.Warnf("attempt %d/%d failed: %v", i, attempts, err)
+
+		if i < attempts {
+			time.Sleep(sleep * time.Duration(i))
+		}
+	}
+	return fmt.Errorf("after %d attempts, last error: %s", attempts, err)
+}
 
 func MergeStructs(src, dst interface{}, overwrite ...bool) {
 	logrus.Debugf("Merging structs: %v, %v", &src, &dst)

@@ -7,7 +7,6 @@ import (
 
 	"github.com/kukaryambik/givme/pkg/archiver"
 	"github.com/kukaryambik/givme/pkg/envars"
-	"github.com/kukaryambik/givme/pkg/list"
 	"github.com/sirupsen/logrus"
 )
 
@@ -18,12 +17,6 @@ var defaultSnapshotName = "snapshot_" + time.Now().Format("20060102150405")
 func snapshot(conf *CommandOptions) error {
 	logrus.Debugf("Starting snapshot creation...")
 	logrus.Trace(conf)
-
-	// List all paths
-	var paths []string
-	if err := list.ListPaths(conf.RootFS, conf.Exclusions, &paths); err != nil {
-		return err
-	}
 
 	// Check if the file already exists.
 	if _, err := os.Stat(conf.TarFile); err == nil {
@@ -38,7 +31,7 @@ func snapshot(conf *CommandOptions) error {
 		}
 		// Create the tar archive
 		logrus.Debugf("Creating tar archive: %s", conf.TarFile)
-		if err := archiver.Tar(paths, conf.TarFile); err != nil {
+		if err := archiver.Tar(conf.RootFS, conf.TarFile, conf.Exclusions); err != nil {
 			return err
 		}
 		logrus.Infof("Snapshot has created!\n\ttarball: %s\n\tdotenv: %s", conf.TarFile, conf.DotenvFile)

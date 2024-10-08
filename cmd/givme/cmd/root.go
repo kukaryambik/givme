@@ -29,7 +29,6 @@ type CommandOptions struct {
 	RootFS           string
 	TarFile          string
 	UserExclusions   string
-	// Volumes          bool
 	Workdir          string
 	Eval             bool
 }
@@ -106,7 +105,9 @@ var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
 	Short: "Create a snapshot archive",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		rootConf.TarFile = filepath.Join(rootConf.Workdir, defaultSnapshotName+".tar")
+		if rootConf.TarFile == "" {
+			rootConf.TarFile = filepath.Join(rootConf.Workdir, defaultSnapshotName+".tar")
+		}
 		rootConf.DotenvFile = filepath.Join(rootConf.Workdir, defaultSnapshotName+".env")
 		util.MergeStructs(&rootConf, &snapshotConf)
 	},

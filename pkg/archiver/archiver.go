@@ -2,184 +2,361 @@ package archiver
 
 import (
 	"archive/tar"
-	"context"
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/kukaryambik/givme/pkg/util"
-	"github.com/mholt/archiver/v4"
 	"github.com/sirupsen/logrus"
 )
 
-func Tar(src []string, dst string) error {
-	filesMap := make(map[string]string)
-	for _, srcPath := range src {
-		// Map source file paths, trimming leading slashes
-		filesMap[srcPath] = strings.TrimLeft(srcPath, "/")
-	}
-
-	// Collect files from disk for archiving
-	files, err := archiver.FilesFromDisk(nil, filesMap)
+func Tar(src, dst string, excl []string) error {
+	// Open the destination file for writing the archive
+	outFile, err := os.Create(dst)
 	if err != nil {
-		logrus.Errorf("Error collecting files from disk: %v", err)
+		logrus.Errorf("Error creating archive file %s: %v", dst, err)
+		return err
+	}
+	defer outFile.Close()
+
+	// Create a new tar.Writer
+	tarWriter := tar.NewWriter(outFile)
+	defer tarWriter.Close()
+
+	// Walk through the source directory
+	err = filepath.Walk(src, func(file string, fi os.FileInfo, err error) error {
+		if err != nil {
+			logrus.Errorf("Error accessing file %s: %v", file, err)
+			return err
+		}
+
+		// Determine the relative path for storage in the archive
+		relPath, err := filepath.Rel(src, file)
+		if err != nil {
+			logrus.Errorf("Error calculating relative path for %s: %v", file, err)
+			return err
+		}
+
+		// Check if the path should be excluded
+		shouldExclude, err := util.IsPathFrom(file, excl)
+		if err != nil {
+			return err
+		}
+		if shouldExclude {
+			logrus.Tracef("Skipping excluded file or directory: %s", file)
+			if fi.IsDir() {
+				return filepath.SkipDir // Skip this directory and its contents
+			}
+			return nil // Skip this file
+		}
+
+		// Create the tar header
+		var linkTarget string
+		if fi.Mode()&os.ModeSymlink != 0 {
+			// This is a symbolic link, get the link target
+			linkTarget, err = os.Readlink(file)
+			if err != nil {
+				logrus.Errorf("Error reading symbolic link %s: %v", file, err)
+				return err
+			}
+		}
+
+		hdr, err := tar.FileInfoHeader(fi, linkTarget)
+		if err != nil {
+			logrus.Errorf("Error creating tar header for %s: %v", file, err)
+			return err
+		}
+
+		// Adjust the file name in the header to be relative to the source directory
+		hdr.Name = relPath
+
+		// Write the header to the archive
+		if err := tarWriter.WriteHeader(hdr); err != nil {
+			logrus.Errorf("Error writing header for %s: %v", file, err)
+			return err
+		}
+
+		// If it's not a regular file, there's no data to write
+		if !fi.Mode().IsRegular() {
+			return nil
+		}
+
+		// Open the file for reading
+		f, err := os.Open(file)
+		if err != nil {
+			logrus.Errorf("Error opening file %s: %v", file, err)
+			return err
+		}
+		defer f.Close()
+
+		// Copy the file data into the archive
+		if _, err := io.Copy(tarWriter, f); err != nil {
+			logrus.Errorf("Error writing file %s to archive: %v", file, err)
+			return err
+		}
+
+		logrus.Tracef("Added file to archive: %s", file)
+		return nil
+	})
+	if err != nil {
+		logrus.Errorf("Error walking through source directory %s: %v", src, err)
 		return err
 	}
 
-	// Create the destination archive file
-	out, err := os.Create(dst)
-	if err != nil {
-		logrus.Errorf("Error creating destination file %s: %v", dst, err)
-		return err
-	}
-	defer out.Close()
-
-	// Initialize the tar format
-	tar := archiver.Tar{ContinueOnError: true}
-
-	// Archive the files to the output
-	err = tar.Archive(context.Background(), out, files)
-	if err != nil {
-		logrus.Errorf("Error archiving files: %v", err)
-		return err
-	}
-
-	logrus.Debugf("Successfully created tar archive: %s", dst)
+	logrus.Debugf("Archive successfully created: %s", dst)
 	return nil
 }
 
 func Untar(src, dst string, excl []string) error {
+	// First, process directories
+	if err := processDirs(src, dst, excl); err != nil {
+		return err
+	}
+
+	// Then, process files
+	if err := processFiles(src, dst, excl); err != nil {
+		return err
+	}
+
+	// Finally, process links
+	if err := processLinks(src, dst, excl); err != nil {
+		return err
+	}
+
+	logrus.Debugf("Archive successfully unpacked: %s", src)
+	return nil
+}
+
+func processDirs(src, dst string, excl []string) error {
 	// Open the source archive for reading
 	input, err := os.Open(src)
 	if err != nil {
-		logrus.Errorf("Error opening source archive %s: %v", src, err)
+		logrus.Errorf("Error opening archive %s: %v", src, err)
 		return err
 	}
 	defer input.Close()
 
-	// Initialize the tar format
-	tarFormat := archiver.Tar{ContinueOnError: true}
+	tarReader := tar.NewReader(input)
 
-	// Define handler for extracting files from the archive
-	handler := func(ctx context.Context, file archiver.File) error {
-		targetPath := filepath.Join(dst, file.NameInArchive)
+	// Create a structure to store the directory name and its permissions
+	type dirEntry struct {
+		Name string
+		Mode os.FileMode
+	}
 
-		// Check if the path should be excluded using util.IsPathFrom
+	var dirEntries []dirEntry
+
+	// Read entries and collect directories
+	for {
+		hdr, err := tarReader.Next()
+		if err == io.EOF {
+			// End of archive
+			break
+		}
+		if err != nil {
+			logrus.Errorf("Error reading archive entry: %v", err)
+			return err
+		}
+
+		if hdr.Typeflag == tar.TypeDir {
+			dirEntries = append(dirEntries, dirEntry{
+				Name: hdr.Name,
+				Mode: hdr.FileInfo().Mode(),
+			})
+		}
+	}
+
+	// Sort directories from root to deeper levels
+	sort.Slice(dirEntries, func(i, j int) bool {
+		iDepth := strings.Count(dirEntries[i].Name, string(os.PathSeparator))
+		jDepth := strings.Count(dirEntries[j].Name, string(os.PathSeparator))
+		return iDepth < jDepth
+	})
+
+	// Create directories with the correct permissions
+	for _, dir := range dirEntries {
+		targetPath := filepath.Join(dst, dir.Name)
+
+		// Check if the path should be excluded
 		shouldExclude, err := util.IsPathFrom(targetPath, excl)
 		if err != nil {
 			return err
 		}
-
-		// Skip excluded paths
 		if shouldExclude {
-			logrus.Tracef("Skipping excluded path: %s", targetPath)
-			return nil
+			logrus.Tracef("Skipping excluded directory: %s", targetPath)
+			continue
 		}
 
-		// Handle symbolic links
-		if file.LinkTarget != "" {
-			// Get the original tar header
-			if hdr, ok := file.Sys().(*tar.Header); ok {
-				switch hdr.Typeflag {
-				case tar.TypeSymlink:
-					// Create a symbolic link
-					logrus.Tracef("Creating symbolic link: %s -> %s", targetPath, file.LinkTarget)
-					if err := os.RemoveAll(targetPath); err != nil {
-						logrus.Errorf("Error deleting existing file %s: %v", targetPath, err)
-						return err
-					}
-					if err := os.Symlink(file.LinkTarget, targetPath); err != nil {
-						logrus.Errorf("Error creating symbolic link %s: %v", targetPath, err)
-						return err
-					}
-				case tar.TypeLink:
-					// Create a hard link
-					logrus.Tracef("Creating hard link: %s -> %s", targetPath, file.LinkTarget)
-					if err := os.RemoveAll(targetPath); err != nil {
-						logrus.Errorf("Error deleting existing file %s: %v", targetPath, err)
-						return err
-					}
-					// Full path to the link target
-					linkTargetPath := filepath.Join(dst, file.LinkTarget)
-					if err := os.Link(linkTargetPath, targetPath); err != nil {
-						logrus.Errorf("Error creating hard link %s: %v", targetPath, err)
-						return err
-					}
-				default:
-					logrus.Warnf("Unknown link type for %s, defaulting to creating a symbolic link", targetPath)
-					if err := os.RemoveAll(targetPath); err != nil {
-						logrus.Errorf("Error deleting existing file %s: %v", targetPath, err)
-						return err
-					}
-					if err := os.Symlink(file.LinkTarget, targetPath); err != nil {
-						logrus.Errorf("Error creating symbolic link %s: %v", targetPath, err)
-						return err
-					}
-				}
-			} else {
-				logrus.Warnf("Failed to get tar header for %s, defaulting to creating a symbolic link", targetPath)
-				if err := os.RemoveAll(targetPath); err != nil {
-					logrus.Errorf("Error deleting existing file %s: %v", targetPath, err)
-					return err
-				}
-				if err := os.Symlink(file.LinkTarget, targetPath); err != nil {
-					logrus.Errorf("Error creating symbolic link %s: %v", targetPath, err)
-					return err
-				}
-			}
-			return nil
+		// Create the directory with permissions from the archive
+		if err := os.MkdirAll(targetPath, dir.Mode); err != nil {
+			logrus.Errorf("Error creating directory %s: %v", targetPath, err)
+			return err
 		}
 
-		// Create directories if needed
-		if file.IsDir() {
-			logrus.Tracef("Creating directory: %s", targetPath)
-			if err := os.MkdirAll(targetPath, os.ModePerm); err != nil {
-				logrus.Errorf("Error creating directory %s: %v", targetPath, err)
+		// Set exact permissions (in case os.MkdirAll changed them)
+		if err := os.Chmod(targetPath, dir.Mode); err != nil {
+			logrus.Errorf("Error setting permissions for directory %s: %v", targetPath, err)
+			return err
+		}
+
+		logrus.Tracef("Created directory: %s with permissions %v", targetPath, dir.Mode)
+	}
+
+	return nil
+}
+
+func processFiles(src, dst string, excl []string) error {
+	// Open the source archive for reading
+	input, err := os.Open(src)
+	if err != nil {
+		logrus.Errorf("Error opening archive %s: %v", src, err)
+		return err
+	}
+	defer input.Close()
+
+	tarReader := tar.NewReader(input)
+
+	// Read entries and process files
+	for {
+		hdr, err := tarReader.Next()
+		if err == io.EOF {
+			// End of archive
+			break
+		}
+		if err != nil {
+			logrus.Errorf("Error reading archive entry: %v", err)
+			return err
+		}
+
+		if hdr.Typeflag != tar.TypeReg && hdr.Typeflag != tar.TypeRegA {
+			// Skip non-regular files
+			continue
+		}
+
+		targetPath := filepath.Join(dst, hdr.Name)
+
+		// Check if the path should be excluded
+		shouldExclude, err := util.IsPathFrom(targetPath, excl)
+		if err != nil {
+			return err
+		}
+		if shouldExclude {
+			logrus.Tracef("Skipping excluded file: %s", targetPath)
+			// Skip the file data
+			if _, err := io.Copy(io.Discard, tarReader); err != nil {
 				return err
 			}
-			return os.Chmod(targetPath, file.Mode())
+			continue
 		}
 
-		// Ensure parent directories exist
-		if err := os.MkdirAll(filepath.Dir(targetPath), os.ModePerm); err != nil {
-			logrus.Errorf("Error creating parent directories for %s: %v", targetPath, err)
-			return err
-		}
-
-		// Open the file for writing, truncating it if it already exists
-		outFile, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, file.Mode())
+		// Create the file
+		outFile, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, hdr.FileInfo().Mode())
 		if err != nil {
 			logrus.Errorf("Error opening file %s for writing: %v", targetPath, err)
-			return nil // Continue with other files
-		}
-		defer outFile.Close()
-
-		fileReader, err := file.Open()
-		if err != nil {
-			logrus.Errorf("Error opening archive file %s: %v", file.NameInArchive, err)
 			return err
 		}
-		defer fileReader.Close()
 
-		// Copy file data from the archive to the target file
-		_, err = io.Copy(outFile, fileReader)
-		if err != nil {
-			logrus.Errorf("Error writing to file %s: %v", targetPath, err)
-			return nil // Continue with other files
+		// Copy the file data
+		if _, err := io.Copy(outFile, tarReader); err != nil {
+			logrus.Errorf("Error writing file %s: %v", targetPath, err)
+			outFile.Close()
+			return err
+		}
+		outFile.Close()
+
+		// Restore the file's modification time
+		if err := os.Chtimes(targetPath, hdr.AccessTime, hdr.ModTime); err != nil {
+			logrus.Warnf("Error setting times for file %s: %v", targetPath, err)
 		}
 
 		logrus.Tracef("Extracted file: %s", targetPath)
-		return nil
 	}
 
-	// Extract files from the tar archive
-	err = tarFormat.Extract(context.Background(), input, nil, handler)
+	return nil
+}
+
+func processLinks(src, dst string, excl []string) error {
+	// Open the source archive for reading
+	input, err := os.Open(src)
 	if err != nil {
-		logrus.Errorf("Error extracting archive: %v", err)
+		logrus.Errorf("Error opening archive %s: %v", src, err)
 		return err
 	}
+	defer input.Close()
 
-	logrus.Debugf("Successfully extracted archive: %s", src)
+	tarReader := tar.NewReader(input)
+
+	// Read entries and process links
+	for {
+		hdr, err := tarReader.Next()
+		if err == io.EOF {
+			// End of archive
+			break
+		}
+		if err != nil {
+			logrus.Errorf("Error reading archive entry: %v", err)
+			return err
+		}
+
+		if hdr.Typeflag != tar.TypeSymlink && hdr.Typeflag != tar.TypeLink {
+			// Skip non-links
+			continue
+		}
+
+		targetPath := filepath.Join(dst, hdr.Name)
+
+		// Check if the path should be excluded
+		shouldExclude, err := util.IsPathFrom(targetPath, excl)
+		if err != nil {
+			return err
+		}
+		if shouldExclude {
+			logrus.Tracef("Skipping excluded link: %s", targetPath)
+			continue
+		}
+
+		linkTarget := hdr.Linkname
+
+		switch hdr.Typeflag {
+		case tar.TypeSymlink:
+			// Create a symbolic link
+			logrus.Tracef("Creating symbolic link: %s -> %s", targetPath, linkTarget)
+			if err := os.RemoveAll(targetPath); err != nil {
+				logrus.Errorf("Error removing existing file %s: %v", targetPath, err)
+				return err
+			}
+			if err := os.Symlink(linkTarget, targetPath); err != nil {
+				logrus.Errorf("Error creating symbolic link %s: %v", targetPath, err)
+				return err
+			}
+		case tar.TypeLink:
+			// Create a hard link
+			linkTargetPath := filepath.Join(dst, linkTarget)
+			logrus.Tracef("Creating hard link: %s -> %s", targetPath, linkTargetPath)
+			if err := os.RemoveAll(targetPath); err != nil {
+				logrus.Errorf("Error removing existing file %s: %v", targetPath, err)
+				return err
+			}
+			if err := os.Link(linkTargetPath, targetPath); err != nil {
+				logrus.Errorf("Error creating hard link %s: %v", targetPath, err)
+				return err
+			}
+		default:
+			logrus.Warnf("Unknown link type for %s, creating symbolic link by default", targetPath)
+			if err := os.RemoveAll(targetPath); err != nil {
+				logrus.Errorf("Error removing existing file %s: %v", targetPath, err)
+				return err
+			}
+			if err := os.Symlink(linkTarget, targetPath); err != nil {
+				logrus.Errorf("Error creating symbolic link %s: %v", targetPath, err)
+				return err
+			}
+		}
+
+		logrus.Tracef("Created link: %s -> %s", targetPath, linkTarget)
+	}
+
 	return nil
 }

@@ -90,4 +90,4 @@ Global Flags:
 
 - [ ] Add volumes
 - [ ] Chroot (or something like this) as an option
-- [ ] Retry for docker pull
+- [x] Retry for docker pull

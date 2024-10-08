@@ -73,7 +73,7 @@ func Untar(src, dst string, excl []string) error {
 
 		// Skip excluded paths
 		if shouldExclude {
-			logrus.Debugf("Skipping excluded path: %s", targetPath)
+			logrus.Tracef("Skipping excluded path: %s", targetPath)
 			return nil
 		}
 
@@ -84,7 +84,7 @@ func Untar(src, dst string, excl []string) error {
 				switch hdr.Typeflag {
 				case tar.TypeSymlink:
 					// Create a symbolic link
-					logrus.Debugf("Creating symbolic link: %s -> %s", targetPath, file.LinkTarget)
+					logrus.Tracef("Creating symbolic link: %s -> %s", targetPath, file.LinkTarget)
 					if err := os.RemoveAll(targetPath); err != nil {
 						logrus.Errorf("Error deleting existing file %s: %v", targetPath, err)
 						return err
@@ -95,7 +95,7 @@ func Untar(src, dst string, excl []string) error {
 					}
 				case tar.TypeLink:
 					// Create a hard link
-					logrus.Debugf("Creating hard link: %s -> %s", targetPath, file.LinkTarget)
+					logrus.Tracef("Creating hard link: %s -> %s", targetPath, file.LinkTarget)
 					if err := os.RemoveAll(targetPath); err != nil {
 						logrus.Errorf("Error deleting existing file %s: %v", targetPath, err)
 						return err
@@ -133,7 +133,7 @@ func Untar(src, dst string, excl []string) error {
 
 		// Create directories if needed
 		if file.IsDir() {
-			logrus.Debugf("Creating directory: %s", targetPath)
+			logrus.Tracef("Creating directory: %s", targetPath)
 			if err := os.MkdirAll(targetPath, os.ModePerm); err != nil {
 				logrus.Errorf("Error creating directory %s: %v", targetPath, err)
 				return err
@@ -169,7 +169,7 @@ func Untar(src, dst string, excl []string) error {
 			return nil // Continue with other files
 		}
 
-		logrus.Debugf("Extracted file: %s", targetPath)
+		logrus.Tracef("Extracted file: %s", targetPath)
 		return nil
 	}
 

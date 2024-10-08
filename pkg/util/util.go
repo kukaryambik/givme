@@ -15,20 +15,20 @@ import (
 )
 
 // Retry attempts to execute a function multiple times with delay between attempts
-func Retry(attempts int, sleep time.Duration, fn func() error) error {
+func Retry(retries int, sleep time.Duration, fn func() error) error {
 	var err error
-	for i := 1; i <= attempts; i++ {
+	for i := 0; i <= retries; i++ {
 		if err = fn(); err == nil {
 			return nil
 		}
 
-		logrus.Warnf("attempt %d/%d failed: %v", i, attempts, err)
+		logrus.Warnf("attempt %d/%d failed: %v", i, retries, err)
 
-		if i < attempts {
+		if i < retries {
 			time.Sleep(sleep * time.Duration(i))
 		}
 	}
-	return fmt.Errorf("after %d attempts, last error: %s", attempts, err)
+	return fmt.Errorf("after %d attempts, last error: %s", retries, err)
 }
 
 func MergeStructs(src, dst interface{}, overwrite ...bool) {

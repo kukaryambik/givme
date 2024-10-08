@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -29,10 +28,6 @@ func save(conf *CommandOptions) (*image.Image, error) {
 			return img.Save(conf.TarFile)
 		})
 		if err != nil {
-			return nil, fmt.Errorf("error saving image to tar file %s: %v", conf.TarFile, err)
-		}
-
-		if err := img.Save(conf.TarFile); err != nil {
 			return nil, err
 		}
 		logrus.Infof("Image %s has been saved to %s", conf.Image, conf.TarFile)

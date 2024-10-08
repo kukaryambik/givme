@@ -29,6 +29,7 @@ type CommandOptions struct {
 	RootFS           string
 	TarFile          string
 	UserExclusions   string
+	// Volumes          bool
 	Workdir          string
 	Eval             bool
 }

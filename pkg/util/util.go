@@ -32,7 +32,7 @@ func Retry(retries int, sleep time.Duration, fn func() error) error {
 }
 
 func MergeStructs(src, dst interface{}, overwrite ...bool) {
-	logrus.Debugf("Merging structs: %v, %v", &src, &dst)
+	logrus.Debugf("Merging structs: %v, %v", src, dst)
 	srcVal := reflect.ValueOf(src).Elem() // Get Value for reading fields
 	dstVal := reflect.ValueOf(dst).Elem() // Get Value for setting fields
 
@@ -49,7 +49,7 @@ func MergeStructs(src, dst interface{}, overwrite ...bool) {
 			}
 		}
 	}
-	logrus.Debugf("Merged struct: %v", &dst)
+	logrus.Debugf("Merged struct: %v", dst)
 }
 
 // Slugify converts a string into a slug (URL-friendly format).

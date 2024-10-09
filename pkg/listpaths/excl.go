@@ -15,7 +15,7 @@ var (
 
 // Exclude generates a list of paths that should be excluded
 // from operations such as snapshot creation or restoration.
-func Excl(exclude ...string) ([]string, error) {
+func Excl(rootpath string, exclude []string) ([]string, error) {
 	mounts, err := util.GetMounts() // Get system mount points.
 	if err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func Excl(exclude ...string) ([]string, error) {
 		}
 
 		//
-		if err := List(v, exclFromExcl, &finalExcl); err != nil {
+		if err := List(rootpath, v, exclFromExcl, &finalExcl); err != nil {
 			return nil, err
 		}
 	}

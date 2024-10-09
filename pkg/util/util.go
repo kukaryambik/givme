@@ -144,13 +144,13 @@ func IsPathFrom(path string, list []string) (bool, error) {
 }
 
 // IsPathContains checks if a path contains any of the listed paths.
-func IsPathContains(path string, list []string) (bool, error) {
+func IsPathContains(rootpath, path string, list []string) (bool, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		logrus.Errorf("error getting absolute path for %s: %v", path, err)
 		return false, fmt.Errorf("error getting absolute path for %s: %v", path, err)
 	}
-	if path == "/" {
+	if path == rootpath {
 		return true, nil
 	}
 	for _, subPath := range list {

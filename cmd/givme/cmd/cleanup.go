@@ -13,7 +13,7 @@ func cleanup(conf *CommandOptions) error {
 
 	// List all paths
 	var paths []string
-	if err := listpaths.List(conf.RootFS, conf.Exclusions, &paths); err != nil {
+	if err := listpaths.List(conf.RootFS, conf.RootFS, conf.Exclusions, &paths); err != nil {
 		logrus.Errorf("Error listing paths: %v", err)
 		return err
 	}

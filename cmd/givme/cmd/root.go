@@ -98,9 +98,12 @@ var RootCmd = &cobra.Command{
 
 		// Build exclusions
 		if excl, err := listpaths.Excl(
-			rootConf.UserExclusions,
-			rootConf.Workdir,
-			"!"+rootConf.RootFS,
+			rootConf.RootFS,
+			[]string{
+				rootConf.UserExclusions,
+				rootConf.Workdir,
+				"!" + rootConf.RootFS,
+			},
 		); err != nil {
 			return err
 		} else {

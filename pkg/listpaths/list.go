@@ -9,7 +9,7 @@ import (
 )
 
 // List recursively lists files and directories, excluding specified paths.
-func List(path string, exclude []string, lst *[]string) error {
+func List(rootpath, path string, exclude []string, lst *[]string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		logrus.Errorf("Failed to get absolute path for %s: %v", path, err)
@@ -40,7 +40,7 @@ func List(path string, exclude []string, lst *[]string) error {
 	}
 
 	// Check if the path contain some excludes in it
-	pathHasExcludes, err := util.IsPathContains(absPath, exclude)
+	pathHasExcludes, err := util.IsPathContains(rootpath, absPath, exclude)
 	if err != nil {
 		logrus.Errorf("Error checking exclusion with IsPathContains for "+
 			"directory %s: %v", absPath, err)
@@ -60,8 +60,9 @@ func List(path string, exclude []string, lst *[]string) error {
 		for _, entry := range entries {
 			logrus.Tracef("Recursively processing entry %s in directory %s",
 				entry.Name(), absPath)
-			if err := List(filepath.Join(
-				absPath, entry.Name()), exclude, lst,
+			if err := List(
+				rootpath, filepath.Join(absPath, entry.Name()),
+				exclude, lst,
 			); err != nil {
 				return err
 			}

@@ -1,5 +1,5 @@
 # Stage 1: Build static BusyBox
-FROM alpine:3.20 AS busybox
+FROM alpine:3.20 AS prepare-busybox
 
 RUN apk add --no-cache build-base wget linux-headers perl
 
@@ -20,12 +20,12 @@ RUN set -eux \
 RUN cp /busybox-${BUSYBOX_VERSION}/busybox /busybox-bin
 
 # Stage 2: Get certificates
-FROM alpine:3.20 AS certs
+FROM alpine:3.20 AS prepare-certs
 
 RUN apk add --no-cache ca-certificates
 
 # Stage 3: Build Givme
-FROM golang:1.23.1-alpine3.20 AS givme
+FROM golang:1.23.1-alpine3.20 AS prepare-givme
 
 WORKDIR /src/app
 
@@ -36,7 +36,7 @@ COPY . /src/app
 RUN CGO_ENABLED=0 GOOS=linux go build -o givme ./cmd/givme
 
 # Final stage: Build the scratch-based image
-FROM scratch
+FROM scratch AS main
 
 ENV PATH="/bin:/givme:/givme/busybox" \
     HOME="/givme" \
@@ -50,7 +50,7 @@ ENV GIVME_PATH="$PATH"
 WORKDIR /givme
 
 # Copy BusyBox
-COPY --from=busybox /busybox-bin /givme/busybox/busybox
+COPY --from=prepare-busybox /busybox-bin /givme/busybox/busybox
 
 SHELL [ "/givme/busybox/busybox", "sh", "-c" ]
 
@@ -61,11 +61,52 @@ RUN set -eux \
   && ln /givme/busybox/sh /bin/sh
 
 # Copy Certs
-COPY --from=certs /etc/ssl/certs/ca-certificates.crt $SSL_CERT_DIR/ca-certificates.crt
+COPY --from=prepare-certs /etc/ssl/certs/ca-certificates.crt $SSL_CERT_DIR/ca-certificates.crt
 
 # Copy Givme
-COPY --from=givme /src/app/givme /givme/givme
+COPY --from=prepare-givme /src/app/givme /givme/givme
 
 VOLUME [ "/givme" ]
 
 ENTRYPOINT ["sh"]
+
+FROM alpine:3.20 AS prepare-proot
+
+RUN apk add --no-cache \
+    build-base \
+    git \
+    python3 \
+    ca-certificates \
+    pkgconf \
+    talloc-dev \
+    talloc-static \
+    linux-headers \
+    libbsd-dev \
+    libbsd-static \
+    musl-dev \
+    musl-utils \
+  && update-ca-certificates
+
+RUN git clone https://github.com/proot-me/proot.git /proot/src
+WORKDIR /proot/src
+
+RUN export CFLAGS="-static" \
+  && export LDFLAGS="-static" \
+  && make -C src loader.elf build.h \
+  && make -C src proot
+
+# Install proot
+RUN set -eux \
+  && mkdir -p /proot/lib /proot/bin \
+  && for i in $( ldd src/proot 2>&1 /dev/stdout | awk -F': ' '{print $1}' ); do \
+    [ -f "$i" ] && cp -a $i /proot/lib/ || contunue \
+  ; done \
+  && cp src/proot /proot/bin/proot \
+  && chmod +x /proot/bin/proot
+
+FROM main AS with-proot
+
+COPY --from=prepare-proot /proot/bin/proot /givme/proot
+COPY --from=prepare-proot /proot/lib /lib
+
+RUN mkdir /tmp

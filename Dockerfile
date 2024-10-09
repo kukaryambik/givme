@@ -1,5 +1,5 @@
 # Stage 1: Build static BusyBox
-FROM alpine AS busybox
+FROM alpine:3.20 AS busybox
 
 RUN apk add --no-cache build-base wget linux-headers perl
 
@@ -20,7 +20,7 @@ RUN set -eux \
 RUN cp /busybox-${BUSYBOX_VERSION}/busybox /busybox-bin
 
 # Stage 2: Get certificates
-FROM alpine AS certs
+FROM alpine:3.20 AS certs
 
 RUN apk add --no-cache ca-certificates
 

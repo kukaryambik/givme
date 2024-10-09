@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 
 	"encoding/json"
@@ -76,8 +77,18 @@ func withMirror(img, mirror string) string {
 func Pull(auth *authn.Basic, image, mirror string) (*Image, error) {
 	logrus.Debugf("Pulling image: %s", image)
 
+	// Set the default platform
+	platform := v1.Platform{
+		Architecture: runtime.GOARCH,
+		OS:           runtime.GOOS,
+	}
+
 	// Trying to pull the image with anonymous access
-	img, err := crane.Pull(withMirror(image, mirror), crane.WithAuth(authn.Anonymous))
+	img, err := crane.Pull(
+		withMirror(image, mirror),
+		crane.WithAuth(authn.Anonymous),
+		crane.WithPlatform(&platform),
+	)
 	if err == nil {
 		logrus.Debugf("Successfully pulled image without credentials: %s", image)
 		return &Image{Image: img, Name: image}, nil
@@ -96,7 +107,11 @@ func Pull(auth *authn.Basic, image, mirror string) (*Image, error) {
 			Username: auth.Username,
 			Password: auth.Password,
 		})
-		img, err = crane.Pull(withMirror(image, mirror), crane.WithAuth(basicAuth))
+		img, err = crane.Pull(
+			withMirror(image, mirror),
+			crane.WithAuth(basicAuth),
+			crane.WithPlatform(&platform),
+		)
 		if err != nil {
 			logrus.Errorf("Error pulling image with credentials %s: %v", image, err)
 			return nil, fmt.Errorf("error pulling image with credentials %s: %v", image, err)

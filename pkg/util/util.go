@@ -14,6 +14,28 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// UniqString creates an array of string with unique values.
+func UniqString(a []string) []string {
+	var (
+		length  = len(a)
+		seen    = make(map[string]struct{}, length)
+		results = make([]string, 0)
+	)
+
+	for i := 0; i < length; i++ {
+		v := a[i]
+
+		if _, ok := seen[v]; ok {
+			continue
+		}
+
+		seen[v] = struct{}{}
+		results = append(results, v)
+	}
+
+	return results
+}
+
 // Retry attempts to execute a function multiple times with delay between attempts
 func Retry(retries int, sleep time.Duration, fn func() error) error {
 	var err error
@@ -105,11 +127,13 @@ func GetMounts() ([]string, error) {
 func IsPathFrom(path string, list []string) (bool, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
+		logrus.Errorf("error getting absolute path for %s: %v", path, err)
 		return false, fmt.Errorf("error getting absolute path for %s: %v", path, err)
 	}
 	for _, base := range list {
 		absBase, err := filepath.Abs(base)
 		if err != nil {
+			logrus.Errorf("error getting absolute path for %s: %v", base, err)
 			return false, fmt.Errorf("error getting absolute path for %s: %v", base, err)
 		}
 		if absPath == absBase || strings.HasPrefix(absPath, absBase+string(os.PathSeparator)) {
@@ -123,6 +147,7 @@ func IsPathFrom(path string, list []string) (bool, error) {
 func IsPathContains(path string, list []string) (bool, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
+		logrus.Errorf("error getting absolute path for %s: %v", path, err)
 		return false, fmt.Errorf("error getting absolute path for %s: %v", path, err)
 	}
 	if path == "/" {
@@ -131,6 +156,7 @@ func IsPathContains(path string, list []string) (bool, error) {
 	for _, subPath := range list {
 		absSubPath, err := filepath.Abs(subPath)
 		if err != nil {
+			logrus.Errorf("error getting absolute path for %s: %v", subPath, err)
 			return false, fmt.Errorf("error getting absolute path for %s: %v", subPath, err)
 		}
 		if absPath == absSubPath || strings.HasPrefix(absSubPath, absPath+string(os.PathSeparator)) {

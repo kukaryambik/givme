@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kukaryambik/givme/pkg/exclusions"
+	"github.com/kukaryambik/givme/pkg/listpaths"
 	"github.com/kukaryambik/givme/pkg/logging"
 	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
@@ -86,13 +86,22 @@ var RootCmd = &cobra.Command{
 			return err
 		}
 
+		// Check if rootfs and workdir are the same
+		if rootConf.RootFS == rootConf.Workdir {
+			return fmt.Errorf("rootfs and workdir cannot be the same")
+		}
+
 		// Ensure the work directory exists.
 		if err := os.MkdirAll(rootConf.Workdir, 0755); err != nil {
 			logrus.Fatalf("Error creating work directory: %v", err)
 		}
 
 		// Build exclusions
-		if excl, err := exclusions.Build(rootConf.UserExclusions, rootConf.Workdir); err != nil {
+		if excl, err := listpaths.Excl(
+			rootConf.UserExclusions,
+			rootConf.Workdir,
+			"!"+rootConf.RootFS,
+		); err != nil {
 			return err
 		} else {
 			rootConf.Exclusions = excl

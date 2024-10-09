@@ -1,4 +1,4 @@
-package list
+package listpaths
 
 import (
 	"os"
@@ -8,8 +8,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ListPaths recursively lists files and directories, excluding specified paths.
-func ListPaths(path string, exclude []string, list *[]string) error {
+// List recursively lists files and directories, excluding specified paths.
+func List(path string, exclude []string, lst *[]string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		logrus.Errorf("Failed to get absolute path for %s: %v", path, err)
@@ -20,7 +20,7 @@ func ListPaths(path string, exclude []string, list *[]string) error {
 	// Get file or directory info
 	fi, err := os.Lstat(absPath)
 	if os.IsNotExist(err) {
-		logrus.Warnf("Path %s does not exist", absPath)
+		logrus.Debugf("Path %s does not exist", absPath)
 		return nil
 	} else if err != nil {
 		logrus.Errorf("Error getting file info for path %s: %v", absPath, err)
@@ -60,8 +60,8 @@ func ListPaths(path string, exclude []string, list *[]string) error {
 		for _, entry := range entries {
 			logrus.Tracef("Recursively processing entry %s in directory %s",
 				entry.Name(), absPath)
-			if err := ListPaths(filepath.Join(
-				absPath, entry.Name()), exclude, list,
+			if err := List(filepath.Join(
+				absPath, entry.Name()), exclude, lst,
 			); err != nil {
 				return err
 			}
@@ -69,7 +69,7 @@ func ListPaths(path string, exclude []string, list *[]string) error {
 	} else {
 		// Add the file path to the list
 		logrus.Debugf("Adding path %s to the list", absPath)
-		*list = append(*list, absPath)
+		*lst = append(*lst, absPath)
 	}
 
 	return nil

@@ -19,7 +19,7 @@ func cleanup(conf *CommandOptions) error {
 	}
 
 	logrus.Debugf("Removing paths: %v", paths)
-	if err := util.Rmrf(paths); err != nil {
+	if err := util.Rmrf(paths...); err != nil {
 		return err
 	}
 

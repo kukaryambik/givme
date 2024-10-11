@@ -81,9 +81,10 @@ func Slugify(s string) string {
 }
 
 // Rmrf removes all files and directories in the provided paths.
-func Rmrf(paths []string) error {
+func Rmrf(paths ...string) error {
 	for _, path := range paths {
-		if err := os.RemoveAll(path); err != nil {
+		err := os.RemoveAll(path)
+		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("failed to remove %s: %w", path, err)
 		}
 	}
@@ -99,6 +100,7 @@ func GetExecDir() string {
 	dir := filepath.Dir(exe)
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
+		logrus.Warnf("failed to get absolute path: %v", err)
 		return dir
 	}
 	return absDir
@@ -123,47 +125,41 @@ func GetMounts() ([]string, error) {
 	return dirs, scanner.Err()
 }
 
-// IsPathFrom checks if a path originates from any of the listed paths.
-func IsPathFrom(path string, list []string) (bool, error) {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		logrus.Errorf("error getting absolute path for %s: %v", path, err)
-		return false, fmt.Errorf("error getting absolute path for %s: %v", path, err)
-	}
-	for _, base := range list {
-		absBase, err := filepath.Abs(base)
+func AbsAll(paths []string) ([]string, error) {
+	var absPaths []string
+
+	for _, p := range paths {
+		ap, err := filepath.Abs(p)
 		if err != nil {
-			logrus.Errorf("error getting absolute path for %s: %v", base, err)
-			return false, fmt.Errorf("error getting absolute path for %s: %v", base, err)
+			return nil, fmt.Errorf("failed to get absolute path: %w", err)
 		}
-		if absPath == absBase || strings.HasPrefix(absPath, absBase+string(os.PathSeparator)) {
-			return true, nil
+		absPaths = append(absPaths, ap)
+	}
+
+	return absPaths, nil
+}
+
+// IsPathFrom checks if a path originates from any of the listed paths.
+func IsPathFrom(path string, list []string) bool {
+	for _, base := range list {
+		if path == base || strings.HasPrefix(path, base+string(os.PathSeparator)) {
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
 
 // IsPathContains checks if a path contains any of the listed paths.
-func IsPathContains(rootpath, path string, list []string) (bool, error) {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		logrus.Errorf("error getting absolute path for %s: %v", path, err)
-		return false, fmt.Errorf("error getting absolute path for %s: %v", path, err)
-	}
+func IsPathContains(rootpath, path string, list []string) bool {
 	if path == rootpath {
-		return true, nil
+		return true
 	}
 	for _, subPath := range list {
-		absSubPath, err := filepath.Abs(subPath)
-		if err != nil {
-			logrus.Errorf("error getting absolute path for %s: %v", subPath, err)
-			return false, fmt.Errorf("error getting absolute path for %s: %v", subPath, err)
-		}
-		if absPath == absSubPath || strings.HasPrefix(absSubPath, absPath+string(os.PathSeparator)) {
-			return true, nil
+		if path == subPath || strings.HasPrefix(subPath, path+string(os.PathSeparator)) {
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
 
 // IsDirEmpty checks if the specified directory is empty.

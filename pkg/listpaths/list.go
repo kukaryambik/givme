@@ -1,6 +1,7 @@
 package listpaths
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -10,11 +11,21 @@ import (
 
 // List recursively lists files and directories, excluding specified paths.
 func List(rootpath, path string, exclude []string, lst *[]string) error {
+	absRoot, err := filepath.Abs(rootpath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for %s: %w", rootpath, err)
+	}
+
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		logrus.Errorf("Failed to get absolute path for %s: %v", path, err)
+		return fmt.Errorf("failed to get absolute path for %s: %w", path, err)
+	}
+
+	absExclude, err := util.AbsAll(exclude)
+	if err != nil {
 		return err
 	}
+
 	logrus.Debugf("Processing path: %s", absPath)
 
 	// Get file or directory info
@@ -23,30 +34,17 @@ func List(rootpath, path string, exclude []string, lst *[]string) error {
 		logrus.Debugf("Path %s does not exist", absPath)
 		return nil
 	} else if err != nil {
-		logrus.Errorf("Error getting file info for path %s: %v", absPath, err)
-		return err
+		return fmt.Errorf("error getting file info for path %s: %v", absPath, err)
 	}
 
 	// Check if the path should be excluded using util.IsPathFrom
-	itsExcluded, err := util.IsPathFrom(absPath, exclude)
-	if err != nil {
-		logrus.Errorf("Error checking exclusion with IsPathFrom for path %s: %v",
-			absPath, err)
-		return err
-	}
-	if itsExcluded {
+	if util.IsPathFrom(absPath, absExclude) {
 		logrus.Debugf("Path %s is excluded by IsPathFrom", absPath)
 		return nil
 	}
 
 	// Check if the path contain some excludes in it
-	pathHasExcludes, err := util.IsPathContains(rootpath, absPath, exclude)
-	if err != nil {
-		logrus.Errorf("Error checking exclusion with IsPathContains for "+
-			"directory %s: %v", absPath, err)
-		return err
-	}
-	if fi.IsDir() && pathHasExcludes {
+	if fi.IsDir() && util.IsPathContains(absRoot, absPath, absExclude) {
 		logrus.Tracef("Path %s is a directory", absPath)
 
 		// Read the contents of the directory
@@ -61,8 +59,8 @@ func List(rootpath, path string, exclude []string, lst *[]string) error {
 			logrus.Tracef("Recursively processing entry %s in directory %s",
 				entry.Name(), absPath)
 			if err := List(
-				rootpath, filepath.Join(absPath, entry.Name()),
-				exclude, lst,
+				absRoot, filepath.Join(absPath, entry.Name()),
+				absExclude, lst,
 			); err != nil {
 				return err
 			}

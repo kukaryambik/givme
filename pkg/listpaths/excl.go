@@ -1,6 +1,7 @@
 package listpaths
 
 import (
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -13,7 +14,7 @@ var (
 	systemExcl = []string{"/proc", "/sys", "/dev", "/run", "/var/run"}
 )
 
-// Exclude generates a list of paths that should be excluded
+// Excl generates a list of paths that should be excluded
 // from operations such as snapshot creation or restoration.
 func Excl(rootpath string, exclude []string) ([]string, error) {
 	mounts, err := util.GetMounts() // Get system mount points.
@@ -27,23 +28,29 @@ func Excl(rootpath string, exclude []string) ([]string, error) {
 		s := strings.FieldsFunc(e, func(r rune) bool { return r == ':' || r == ',' })
 		for _, d := range s {
 			if strings.HasPrefix(d, "!") {
-				absPath, err := filepath.Abs(d[1:])
-				if err != nil {
-					return nil, err
-				}
-				exclFromExcl = append(exclFromExcl, absPath)
+				exclFromExcl = append(exclFromExcl, d[1:])
 			} else {
-				absPath, err := filepath.Abs(d)
-				if err != nil {
-					return nil, err
-				}
-				userExcl = append(userExcl, absPath)
+				userExcl = append(userExcl, d)
 			}
 		}
 	}
 
 	allExcl := slices.Concat(mounts, systemExcl, userExcl)
+	allExcl, err = util.AbsAll(allExcl)
+	if err != nil {
+		return nil, err
+	}
 	allExcl = util.UniqString(allExcl)
+
+	exclFromExcl, err = util.AbsAll(exclFromExcl)
+	if err != nil {
+		return nil, err
+	}
+
+	absRoot, err := filepath.Abs(rootpath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path for %s: %w", rootpath, err)
+	}
 
 	var finalExcl []string
 	for i, v := range allExcl {
@@ -51,13 +58,13 @@ func Excl(rootpath string, exclude []string) ([]string, error) {
 		a := slices.Clone(allExcl)
 		a = slices.Delete(a, i, i+1)
 
-		//
-		if ok, _ := util.IsPathFrom(v, a); ok {
+		// Check if the path should be excluded
+		if util.IsPathFrom(v, a) {
 			continue
 		}
 
-		//
-		if err := List(rootpath, v, exclFromExcl, &finalExcl); err != nil {
+		// Check if the path contain some excludes in it
+		if err := List(absRoot, v, exclFromExcl, &finalExcl); err != nil {
 			return nil, err
 		}
 	}

@@ -25,7 +25,7 @@ FROM alpine:3.20 AS prepare-certs
 RUN apk add --no-cache ca-certificates
 
 # Stage 3: Build Givme
-FROM golang:1.23.1-alpine3.20 AS prepare-givme
+FROM golang:1.23-alpine3.20 AS prepare-givme
 
 WORKDIR /src/app
 
@@ -90,8 +90,11 @@ RUN apk add --no-cache \
 RUN git clone https://github.com/proot-me/proot.git /proot/src
 WORKDIR /proot/src
 
-RUN export CFLAGS="-static" \
-  && export LDFLAGS="-static" \
+ARG PROOT_VERSION=v5.4.0
+RUN set -eux \
+  && git checkout "${PROOT_VERSION}" \
+  && export CFLAGS="-static" \
+  && export LDFLAGS="-static -pthread" \
   && make -C src loader.elf build.h \
   && make -C src proot
 
@@ -99,7 +102,7 @@ RUN export CFLAGS="-static" \
 RUN set -eux \
   && mkdir -p /proot/lib /proot/bin \
   && INTERP=$(file -bL /bin/sh | tr ',' '\n' | awk '$1 == "interpreter" {print $2}') \
-  && cp $INTERP /proot/lib/ \
+  && cp -L $INTERP /proot/lib/ \
   && cp src/proot /proot/bin/proot \
   && chmod +x /proot/bin/proot
 

@@ -98,9 +98,8 @@ RUN export CFLAGS="-static" \
 # Install proot
 RUN set -eux \
   && mkdir -p /proot/lib /proot/bin \
-  && for i in $( ldd src/proot 2>&1 /dev/stdout | awk -F': ' '{print $1}' ); do \
-    [ -f "$i" ] && cp -a $i /proot/lib/ || contunue \
-  ; done \
+  && INTERP=$(file -bL /bin/sh | tr ',' '\n' | awk '$1 == "interpreter" {print $2}') \
+  && cp $INTERP /proot/lib/ \
   && cp src/proot /proot/bin/proot \
   && chmod +x /proot/bin/proot
 
@@ -109,4 +108,4 @@ FROM main AS with-proot
 COPY --from=prepare-proot /proot/bin/proot /givme/proot
 COPY --from=prepare-proot /proot/lib /lib
 
-RUN mkdir /tmp
+RUN mkdir /tmp && chmod 777 /tmp

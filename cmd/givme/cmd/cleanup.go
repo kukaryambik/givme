@@ -8,12 +8,12 @@ import (
 
 // Cleanup removes files and directories in the target directory,
 // excluding the paths specified in excludes.
-func cleanup(conf *CommandOptions) error {
+func cleanup(opts *CommandOptions) error {
 	logrus.Debugf("Starting cleanup...")
 
 	// List all paths
 	var paths []string
-	if err := listpaths.List(conf.RootFS, conf.RootFS, conf.Exclusions, &paths); err != nil {
+	if err := listpaths.List(opts.RootFS, opts.RootFS, opts.Exclusions, &paths); err != nil {
 		logrus.Errorf("Error listing paths: %v", err)
 		return err
 	}

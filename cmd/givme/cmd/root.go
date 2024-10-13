@@ -28,7 +28,6 @@ type CommandOptions struct {
 	Retry            int
 	RootFS           string
 	TarFile          string
-	UserExclusions   string
 	Workdir          string
 	Eval             bool
 }
@@ -38,13 +37,7 @@ var (
 	logFormat    string
 	logTimestamp bool
 
-	cleanupConf  CommandOptions
-	exportConf   CommandOptions
-	loadConf     CommandOptions
-	restoreConf  CommandOptions
-	rootConf     CommandOptions
-	saveConf     CommandOptions
-	snapshotConf CommandOptions
+	opts CommandOptions
 )
 
 func init() {
@@ -61,6 +54,7 @@ func init() {
 	RootCmd.AddCommand(
 		cleanupCmd,
 		exportCmd,
+		getenvCmd,
 		loadCmd,
 		restoreCmd,
 		saveCmd,
@@ -72,42 +66,37 @@ var RootCmd = &cobra.Command{
 	Use: appName,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Set variables from flags or environment
-		rootConf.Workdir = viper.GetString("workdir")
-		rootConf.RootFS = viper.GetString("rootfs")
-		rootConf.UserExclusions = viper.GetString("exclude")
-		rootConf.RegistryMirror = viper.GetString("registry-mirror")
-		rootConf.RegistryUsername = viper.GetString("registry-username")
-		rootConf.RegistryPassword = viper.GetString("registry-password")
-		rootConf.Retry = viper.GetInt("retry")
+		opts.Workdir = viper.GetString("workdir")
+		opts.RootFS = viper.GetString("rootfs")
+		opts.Exclusions = viper.GetStringSlice("exclude")
+		opts.RegistryMirror = viper.GetString("registry-mirror")
+		opts.RegistryUsername = viper.GetString("registry-username")
+		opts.RegistryPassword = viper.GetString("registry-password")
+		opts.Retry = viper.GetInt("retry")
 		logLevel = viper.GetString("verbosity")
 
 		// Set up logging
-		if err := logging.Configure(logLevel, logFormat, logTimestamp, rootConf.Eval); err != nil {
+		if err := logging.Configure(logLevel, logFormat, logTimestamp, opts.Eval); err != nil {
 			return err
 		}
 
 		// Check if rootfs and workdir are the same
-		if rootConf.RootFS == rootConf.Workdir {
+		if opts.RootFS == opts.Workdir {
 			return fmt.Errorf("rootfs and workdir cannot be the same")
 		}
 
 		// Ensure the work directory exists.
-		if err := os.MkdirAll(rootConf.Workdir, 0755); err != nil {
+		if err := os.MkdirAll(opts.Workdir, 0755); err != nil {
 			logrus.Fatalf("Error creating work directory: %v", err)
 		}
 
 		// Build exclusions
 		if excl, err := listpaths.Excl(
-			rootConf.RootFS,
-			[]string{
-				rootConf.UserExclusions,
-				rootConf.Workdir,
-				"!" + rootConf.RootFS,
-			},
+			opts.RootFS, append(opts.Exclusions, opts.Workdir, "!"+opts.RootFS),
 		); err != nil {
 			return err
 		} else {
-			rootConf.Exclusions = excl
+			opts.Exclusions = excl
 		}
 		return nil
 	},
@@ -117,26 +106,24 @@ var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
 	Short: "Create a snapshot archive",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		if rootConf.TarFile == "" {
-			rootConf.TarFile = filepath.Join(rootConf.Workdir, defaultSnapshotName+".tar")
+		if opts.TarFile == "" {
+			opts.TarFile = filepath.Join(opts.Workdir, defaultSnapshotName+".tar")
 		}
-		rootConf.DotenvFile = filepath.Join(rootConf.Workdir, defaultSnapshotName+".env")
-		util.MergeStructs(&rootConf, &snapshotConf)
+		if opts.DotenvFile == "" {
+			opts.DotenvFile = filepath.Join(opts.Workdir, defaultSnapshotName+".env")
+		}
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return snapshot(&snapshotConf)
+		return snapshot(&opts)
 	},
 }
 
 var restoreCmd = &cobra.Command{
 	Use:   "restore",
 	Short: "Restore from a snapshot archive",
-	PreRun: func(cmd *cobra.Command, args []string) {
-		util.MergeStructs(&rootConf, &restoreConf)
-	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := restore(&restoreConf)
-		if err != nil && restoreConf.Eval {
+		err := restore(&opts)
+		if err != nil && opts.Eval {
 			fmt.Print("false")
 		}
 		return err
@@ -146,25 +133,17 @@ var restoreCmd = &cobra.Command{
 var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
 	Short: "Clean up directories",
-	PreRun: func(cmd *cobra.Command, args []string) {
-		util.MergeStructs(&rootConf, &cleanupConf)
-	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return cleanup(&cleanupConf)
+		return cleanup(&opts)
 	},
 }
 
 var saveCmd = &cobra.Command{
 	Use:   "save",
 	Short: "Save image to tar archive",
-	PreRun: func(cmd *cobra.Command, args []string) {
-		rootConf.Image = args[0]
-		imgSlug := util.Slugify(rootConf.Image)
-		rootConf.TarFile = filepath.Join(rootConf.Workdir, imgSlug+".tar")
-		util.MergeStructs(&rootConf, &saveConf)
-	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		_, err := save(&saveConf)
+		opts.Image = args[0]
+		_, err := save(&opts)
 		return err
 	},
 }
@@ -173,16 +152,23 @@ var exportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "Export container image tar and config",
 	Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
-	PreRun: func(cmd *cobra.Command, args []string) {
-		rootConf.Image = args[0]
-		imgSlug := util.Slugify(rootConf.Image)
-		rootConf.TarFile = filepath.Join(rootConf.Workdir, imgSlug+".tar")
-		rootConf.DotenvFile = filepath.Join(rootConf.Workdir, imgSlug+".env")
-
-		util.MergeStructs(&rootConf, &exportConf)
-	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return export(&exportConf)
+		opts.Image = args[0]
+		return export(&opts)
+	},
+}
+
+var getenvCmd = &cobra.Command{
+	Use:   "getenv",
+	Short: "Get container image environment variables",
+	Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
+	RunE: func(cmd *cobra.Command, args []string) error {
+		opts.Image = args[0]
+		err := getenv(&opts)
+		if err != nil && opts.Eval {
+			fmt.Print("false")
+		}
+		return err
 	},
 }
 
@@ -190,15 +176,10 @@ var loadCmd = &cobra.Command{
 	Use:   "load",
 	Short: "Load container image tar and apply it to the system",
 	Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
-	PreRun: func(cmd *cobra.Command, args []string) {
-		rootConf.Image = args[0]
-		imgSlug := util.Slugify(rootConf.Image)
-		rootConf.TarFile = filepath.Join(rootConf.Workdir, imgSlug+".tar")
-		util.MergeStructs(&rootConf, &loadConf)
-	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := load(&loadConf)
-		if err != nil && loadConf.Eval {
+		opts.Image = args[0]
+		err := load(&opts)
+		if err != nil && opts.Eval {
 			fmt.Print("false")
 		}
 		return err
@@ -208,31 +189,47 @@ var loadCmd = &cobra.Command{
 func addFlags() {
 	execdir := util.GetExecDir()
 
-	// RootCmd flags
-	RootCmd.PersistentFlags().StringVar(
-		&rootConf.RootFS, "rootfs", "/", "RootFS directory; or use GIVME_ROOTFS")
-	RootCmd.PersistentFlags().StringVar(
-		&rootConf.Workdir, "workdir", execdir, "Working directory; or use GIVME_WORKDIR")
-	RootCmd.PersistentFlags().StringVar(
-		&rootConf.UserExclusions, "exclude", "", "Excluded directories; or use GIVME_EXCLUDE")
-	RootCmd.PersistentFlags().BoolVarP(
-		&rootConf.Eval, "eval", "e", false, "Output might be evaluated")
 	RootCmd.PersistentFlags().StringVarP(
-		&rootConf.TarFile, "tar-file", "f", "", "Path to the tar file")
+		&opts.RootFS, "rootfs", "R", "/", "RootFS directory; or use GIVME_ROOTFS")
+	RootCmd.MarkPersistentFlagDirname("rootfs")
+
+	RootCmd.PersistentFlags().StringVarP(
+		&opts.Workdir, "workdir", "W", execdir, "Working directory; or use GIVME_WORKDIR")
+	RootCmd.MarkPersistentFlagDirname("workdir")
+
+	RootCmd.PersistentFlags().StringSliceVarP(
+		&opts.Exclusions, "exclude", "X", nil, "Excluded directories; or use GIVME_EXCLUDE")
+
+	RootCmd.PersistentFlags().BoolVarP(
+		&opts.Eval, "eval", "e", false, "Output might be evaluated")
+
+	RootCmd.PersistentFlags().StringVarP(
+		&opts.TarFile, "tar-file", "f", "", "Path to the tar file")
+	RootCmd.MarkPersistentFlagFilename("tar-file", ".tar")
+	restoreCmd.MarkPersistentFlagRequired("tar-file")
+
+	RootCmd.PersistentFlags().StringVarP(
+		&opts.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
+	RootCmd.MarkPersistentFlagFilename("dotenv-file", ".env")
+
 	RootCmd.PersistentFlags().IntVar(
-		&rootConf.Retry, "retry", 0, "Retry attempts of saving the image; or use GIVME_RETRY")
+		&opts.Retry, "retry", 0, "Retry attempts of saving the image; or use GIVME_RETRY")
+
 	RootCmd.PersistentFlags().StringVar(
-		&rootConf.RegistryMirror, "registry-mirror", "",
+		&opts.RegistryMirror, "registry-mirror", "",
 		"Registry mirror; or use GIVME_REGISTRY_MIRROR",
 	)
+
 	RootCmd.PersistentFlags().StringVar(
-		&exportConf.RegistryUsername, "registry-username", "",
+		&opts.RegistryUsername, "registry-username", "",
 		"Username for registry authentication; or use GIVME_REGISTRY_USERNAME",
 	)
+
 	RootCmd.PersistentFlags().StringVar(
-		&exportConf.RegistryPassword, "registry-password", "",
+		&opts.RegistryPassword, "registry-password", "",
 		"Password for registry authentication; or use GIVME_REGISTRY_PASSWORD",
 	)
+
 	// Logging flags
 	RootCmd.PersistentFlags().StringVarP(
 		&logLevel, "verbosity", "v", logging.DefaultLevel,
@@ -246,17 +243,4 @@ func addFlags() {
 		&logTimestamp, "log-timestamp", logging.DefaultLogTimestamp,
 		"Timestamp in log output",
 	)
-
-	// snapshotCmd flags
-	snapshotCmd.Flags().StringVarP(
-		&snapshotConf.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
-
-	// restoreCmd flags
-	restoreCmd.MarkFlagRequired("tar-file")
-	restoreCmd.Flags().StringVarP(
-		&restoreConf.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
-
-	// exportCmd flags
-	exportCmd.Flags().StringVarP(
-		&exportConf.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
 }

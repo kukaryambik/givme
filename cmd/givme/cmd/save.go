@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"path/filepath"
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -9,36 +10,41 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func save(conf *CommandOptions) (*image.Image, error) {
+func save(opts *CommandOptions) (*image.Image, error) {
 	auth := &authn.Basic{
-		Username: conf.RegistryUsername,
-		Password: conf.RegistryPassword,
+		Username: opts.RegistryUsername,
+		Password: opts.RegistryPassword,
 	}
 
-	if util.IsFileExists(conf.Image) {
-		conf.TarFile = conf.Image
-	} else if conf.TarFile != "" && !util.IsFileExists(conf.TarFile) {
+	imgSlug := util.Slugify(opts.Image)
+	if opts.TarFile == "" {
+		opts.TarFile = filepath.Join(opts.Workdir, imgSlug+".tar")
+	}
+
+	if util.IsFileExists(opts.Image) {
+		opts.TarFile = opts.Image
+	} else if opts.TarFile != "" && !util.IsFileExists(opts.TarFile) {
 		// Pull the image
-		img, err := image.Pull(auth, conf.Image, conf.RegistryMirror)
+		img, err := image.Pull(auth, opts.Image, opts.RegistryMirror)
 		if err != nil {
 			return nil, err
 		}
 
-		err = util.Retry(conf.Retry, 5*time.Second, func() error {
-			return img.Save(conf.TarFile)
+		err = util.Retry(opts.Retry, 5*time.Second, func() error {
+			return img.Save(opts.TarFile)
 		})
 		if err != nil {
 			return nil, err
 		}
-		logrus.Infof("Image %s has been saved to %s", conf.Image, conf.TarFile)
+		logrus.Infof("Image %s has been saved to %s", opts.Image, opts.TarFile)
 	}
 
 	// Load the image
-	img, err := image.Load(conf.TarFile)
+	img, err := image.Load(opts.TarFile)
 	if err != nil {
 		return nil, err
 	}
 
-	logrus.Infof("Using file %s", conf.TarFile)
+	logrus.Infof("Using file %s", opts.TarFile)
 	return img, nil
 }

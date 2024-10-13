@@ -11,14 +11,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func load(conf *CommandOptions) error {
+func load(opts *CommandOptions) error {
 
-	img, err := save(conf)
+	img, err := save(opts)
 	if err != nil {
 		return err
 	}
 
-	tmpFS := filepath.Join(conf.Workdir, ".fs_"+util.Slugify(conf.Image)+".tar")
+	tmpFS := filepath.Join(opts.Workdir, ".fs_"+util.Slugify(opts.Image)+".tar")
 	defer os.Remove(tmpFS)
 
 	if err := img.Export(tmpFS); err != nil {
@@ -31,16 +31,16 @@ func load(conf *CommandOptions) error {
 		return fmt.Errorf("error getting config from image %s: %v", img, err)
 	}
 
-	if err := cleanup(conf); err != nil {
+	if err := cleanup(opts); err != nil {
 		return err
 	}
 
-	// if conf.Volumes {
+	// if opts.Volumes {
 	// 	for v := range cfg.Config.Volumes {
 	// 		if err := os.MkdirAll(filepath.Dir(v), os.ModePerm); err != nil {
 	// 			return fmt.Errorf("error creating directory %s: %v", filepath.Dir(v), err)
 	// 		}
-	// 		tmpDir, err := os.MkdirTemp(conf.Workdir, "*")
+	// 		tmpDir, err := os.MkdirTemp(opts.Workdir, "*")
 	// 		if err != nil {
 	// 			return fmt.Errorf("error creating temporary directory: %v", err)
 	// 		}
@@ -50,15 +50,15 @@ func load(conf *CommandOptions) error {
 	// 	}
 	// }
 
-	if err := archiver.Untar(tmpFS, conf.RootFS, conf.Exclusions); err != nil {
+	if err := archiver.Untar(tmpFS, opts.RootFS, opts.Exclusions); err != nil {
 		return err
 	}
 
 	env := cfg.Config.Env
-	if conf.Eval {
+	if opts.Eval {
 		fmt.Println(strings.Join(env, "\n"))
 	}
 
-	logrus.Infof("Image %s has been loaded!\n", conf.Image)
+	logrus.Infof("Image %s has been loaded!\n", opts.Image)
 	return nil
 }

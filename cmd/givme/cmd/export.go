@@ -1,33 +1,35 @@
 package cmd
 
 import (
-	"fmt"
+	"path/filepath"
 
-	"github.com/kukaryambik/givme/pkg/envars"
+	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
 )
 
-func export(conf *CommandOptions) error {
+func export(opts *CommandOptions) error {
 
-	img, err := save(conf)
+	saveOpts := *opts
+	saveOpts.TarFile = ""
+	img, err := save(&saveOpts)
 	if err != nil {
 		return err
 	}
 
-	if err := img.Export(conf.TarFile); err != nil {
+	if opts.TarFile == "" {
+		imgSlug := util.Slugify(img.Name)
+		opts.TarFile = filepath.Join(opts.Workdir, imgSlug+".fs.tar")
+	}
+
+	if util.IsFileExists(opts.TarFile) {
+		logrus.Warnf("File %s already exists. Skipping export.", opts.TarFile)
+		return nil
+	}
+
+	if err := img.Export(opts.TarFile); err != nil {
 		return err
 	}
 
-	logrus.Debugf("Fetching config file for image %s", img)
-	cfg, err := img.Config()
-	if err != nil {
-		return fmt.Errorf("error getting config from image %s: %v", img, err)
-	}
-
-	if conf.DotenvFile != "" {
-		envars.SaveToFile(cfg.Config.Env, conf.DotenvFile)
-	}
-
-	logrus.Infof("Image %s has been loaded!\n", conf.Image)
+	logrus.Infof("Image %s has been exported to %s!\n", opts.Image, opts.TarFile)
 	return nil
 }

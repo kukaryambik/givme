@@ -25,13 +25,10 @@ func Excl(rootpath string, exclude []string) ([]string, error) {
 	var userExcl []string
 	var exclFromExcl []string
 	for _, e := range exclude {
-		s := strings.FieldsFunc(e, func(r rune) bool { return r == ':' || r == ',' })
-		for _, d := range s {
-			if strings.HasPrefix(d, "!") {
-				exclFromExcl = append(exclFromExcl, d[1:])
-			} else {
-				userExcl = append(userExcl, d)
-			}
+		if strings.HasPrefix(e, "!") {
+			exclFromExcl = append(exclFromExcl, e[1:])
+		} else {
+			userExcl = append(userExcl, e)
 		}
 	}
 

@@ -10,19 +10,19 @@ import (
 
 // Restore extracts the contents of the tar archive to the rootfs
 // directory, while skipping directories listed in buildExclusions.
-func restore(conf *CommandOptions) error {
-	logrus.Debugf("Restoring from archive: %s", conf.TarFile)
+func restore(opts *CommandOptions) error {
+	logrus.Debugf("Restoring from archive: %s", opts.TarFile)
 
-	if err := cleanup(conf); err != nil {
+	if err := cleanup(opts); err != nil {
 		return err
 	}
 
-	if err := archiver.Untar(conf.TarFile, conf.RootFS, conf.Exclusions); err != nil {
+	if err := archiver.Untar(opts.TarFile, opts.RootFS, opts.Exclusions); err != nil {
 		return err
 	}
 
-	if conf.DotenvFile != "" && conf.Eval {
-		f, err := os.ReadFile(conf.DotenvFile)
+	if opts.DotenvFile != "" && opts.Eval {
+		f, err := os.ReadFile(opts.DotenvFile)
 		if err != nil {
 			return err
 		}

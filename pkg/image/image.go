@@ -208,17 +208,8 @@ func Get(auth *authn.Basic, image, mirror, file string) (*Image, error) {
 func (img *Image) Export(tar string) error {
 	logrus.Debugf("Starting to export filesystem of image %s to %s", img.Name, tar)
 
-	// Check if the target tar file already exists.
-	if _, err := os.Stat(tar); err == nil {
-		logrus.Warnf("Image %s already downloaded, skipping export", img.Name)
-		return nil
-	} else if !os.IsNotExist(err) {
-		logrus.Errorf("Error checking file %s: %v", tar, err)
-		return fmt.Errorf("error checking file %s: %v", tar, err)
-	}
-
 	// Create the output tar file
-	tarFile, err := os.OpenFile(tar, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	tarFile, err := os.OpenFile(tar, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {
 		logrus.Errorf("Error creating file %s: %v", tar, err)
 		return fmt.Errorf("error creating file %s: %v", tar, err)
@@ -264,7 +255,7 @@ func (img *Image) Config(file ...string) (v1.ConfigFile, error) {
 	if len(file) > 0 {
 		// Check if file already exists.
 		if _, err := os.Stat(file[0]); err == nil {
-			logrus.Warnf("Config for %s already downloaded. Reading from %s", img.Name, file)
+			logrus.Infof("Config for %s already downloaded. Reading from %s", img.Name, file)
 
 			// Read the file
 			jsonData, err := os.ReadFile(file[0])

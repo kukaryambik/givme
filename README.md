@@ -54,10 +54,11 @@ curl --version
 
 Available Commands:
 
-```
+```sh
   cleanup     Clean up directories
   completion  Generate the autocompletion script for the specified shell
   export      Export container image tar and config
+  getenv      Get container image environment variables
   help        Help about any command
   load        Load container image tar and apply it to the system
   restore     Restore from a snapshot archive
@@ -67,24 +68,20 @@ Available Commands:
 
 Global Flags:
 
-```
+```sh
+  -d, --dotenv-file string         Path to the .env file
   -e, --eval                       Output might be evaluated
-      --exclude string             Excluded directories; or use GIVME_EXCLUDE
-  -h, --help                       help for givme
+  -X, --exclude strings            Excluded directories; or use GIVME_EXCLUDE
       --log-format string          Log format (text, color, json) (default "color")
       --log-timestamp              Timestamp in log output
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
       --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
       --retry int                  Retry attempts of saving the image; or use GIVME_RETRY
-      --rootfs string              RootFS directory; or use GIVME_ROOTFS (default "/")
+  -R, --rootfs string              RootFS directory; or use GIVME_ROOTFS (default "/")
   -f, --tar-file string            Path to the tar file
   -v, --verbosity string           Log level (trace, debug, info, warn, error, fatal, panic) (default "info")
-      --workdir string             Working directory; or use GIVME_WORKDIR (default "/givme")
-
-  # Only for some commands
-  -d, --dotenv-file string         Path to the .env file ( for export, restore and snapshot )
-
+  -W, --workdir string             Working directory; or use GIVME_WORKDIR (default "/givme")
 ```
 
 ## TODO

@@ -18,7 +18,7 @@ func export(opts *CommandOptions) error {
 
 	if opts.TarFile == "" {
 		imgSlug := util.Slugify(img.Name)
-		opts.TarFile = filepath.Join(opts.Workdir, imgSlug+".fs.tar")
+		opts.TarFile = filepath.Join(opts.Workdir, "fs_"+imgSlug+".tar")
 	}
 
 	if util.IsFileExists(opts.TarFile) {

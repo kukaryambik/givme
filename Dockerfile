@@ -41,9 +41,7 @@ FROM scratch AS main
 ENV PATH="/bin:/givme:/givme/busybox" \
     HOME="/givme" \
     USER="root" \
-    SSL_CERT_DIR="/givme/certs" \
-    GIVME_WORKDIR="/givme" \
-    GIVME_EXCLUDE="/givme"
+    SSL_CERT_DIR="/givme/certs"
 
 ENV GIVME_PATH="$PATH"
 

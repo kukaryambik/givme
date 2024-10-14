@@ -178,30 +178,12 @@ func Load(path string) (*Image, error) {
 	return &Image{Image: img, Name: imgName[0]}, nil
 }
 
-func Get(auth *authn.Basic, image, mirror, file string) (*Image, error) {
+func Get(auth *authn.Basic, image, mirror string) (*Image, error) {
 	if util.IsFileExists(image) {
-		file = image
-	} else if file != "" && !util.IsFileExists(file) {
-		// Pull the image
-		img, err := Pull(auth, image, mirror)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := img.Save(file); err != nil {
-			return nil, err
-		}
-		logrus.Infof("Image %s has been saved to %s", image, file)
+		return Load(image)
+	} else {
+		return Pull(auth, image, mirror)
 	}
-
-	// Load the image
-	img, err := Load(file)
-	if err != nil {
-		return nil, err
-	}
-
-	logrus.Infof("Using file %s", file)
-	return img, nil
 }
 
 // Export exports the image filesystem as a tarball to the given path.
@@ -228,22 +210,6 @@ func (img *Image) Export(tar string) error {
 
 	logrus.Debugf("Successfully exported filesystem of image %s to %s", img.Name, tar)
 	return nil
-}
-
-// Env pulls an image and returns its environment variables.
-func (img *Image) Env() ([]string, error) {
-	logrus.Debugf("Fetching environment variables for image: %s", img.Name)
-
-	// Get the config file of the image
-	configFile, err := img.Image.ConfigFile()
-	if err != nil {
-		logrus.Errorf("Error fetching config file for image %s: %v", img.Name, err)
-		return nil, fmt.Errorf("error fetching config file for image %s: %v", img.Name, err)
-	}
-
-	logrus.Debugf("Successfully fetched environment variables for image: %s", img.Name)
-	// Return the environment variables from the config file
-	return configFile.Config.Env, nil
 }
 
 // Config pulls an image and returns its config

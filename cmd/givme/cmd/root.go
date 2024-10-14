@@ -19,33 +19,44 @@ const (
 )
 
 type CommandOptions struct {
-	DotenvFile       string
-	Exclusions       []string
+	// Command options
+	Cmd              []string
+	DotenvFile       string   `mapstructure:"dotenv-file"`
+	Entrypoint       string   `mapstructure:"entrypoint"`
+	Eval             bool     `mapstructure:"eval"`
+	Exclusions       []string `mapstructure:"exclude"`
 	Image            string
-	RegistryUsername string
-	RegistryPassword string
-	RegistryMirror   string
-	Retry            int
-	RootFS           string
-	TarFile          string
-	Workdir          string
-	Eval             bool
+	RegistryMirror   string `mapstructure:"registry-mirror"`
+	RegistryPassword string `mapstructure:"registry-password"`
+	RegistryUsername string `mapstructure:"registry-username"`
+	Retry            int    `mapstructure:"retry"`
+	RootFS           string `mapstructure:"rootfs"`
+	TarFile          string `mapstructure:"tar-file"`
+	Workdir          string `mapstructure:"workdir"`
+
+	// Logging
+	LogLevel     string `mapstructure:"log-level"`
+	LogFormat    string `mapstructure:"log-format"`
+	LogTimestamp bool   `mapstructure:"log-timestamp"`
 }
 
 var (
-	logLevel     string
-	logFormat    string
-	logTimestamp bool
-
-	opts CommandOptions
+	opts    CommandOptions
+	execdir = util.GetExecDir()
 )
 
+func mkFlags(c func(*cobra.Command), l ...*cobra.Command) {
+	for _, cmd := range l {
+		c(cmd)
+	}
+}
+
 func init() {
+	addFlags()
+
 	viper.SetEnvPrefix(appName) // Environment variables prefixed with GIVME_
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv() // Automatically bind environment variables
-
-	addFlags()
 
 	// Bind flags to environment variables
 	viper.BindPFlags(RootCmd.PersistentFlags())
@@ -56,6 +67,7 @@ func init() {
 		exportCmd,
 		getenvCmd,
 		loadCmd,
+		prootCmd,
 		restoreCmd,
 		saveCmd,
 		snapshotCmd,
@@ -66,17 +78,13 @@ var RootCmd = &cobra.Command{
 	Use: appName,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Set variables from flags or environment
-		opts.Workdir = viper.GetString("workdir")
-		opts.RootFS = viper.GetString("rootfs")
-		opts.Exclusions = viper.GetStringSlice("exclude")
-		opts.RegistryMirror = viper.GetString("registry-mirror")
-		opts.RegistryUsername = viper.GetString("registry-username")
-		opts.RegistryPassword = viper.GetString("registry-password")
-		opts.Retry = viper.GetInt("retry")
-		logLevel = viper.GetString("verbosity")
+		if err := viper.BindPFlags(cmd.Flags()); err != nil {
+			return fmt.Errorf("error binding flags: %v", err)
+		}
+		viper.Unmarshal(&opts)
 
 		// Set up logging
-		if err := logging.Configure(logLevel, logFormat, logTimestamp, opts.Eval); err != nil {
+		if err := logging.Configure(opts.LogLevel, opts.LogFormat, opts.LogTimestamp, opts.Eval); err != nil {
 			return err
 		}
 
@@ -92,7 +100,7 @@ var RootCmd = &cobra.Command{
 
 		// Build exclusions
 		if excl, err := listpaths.Excl(
-			opts.RootFS, append(opts.Exclusions, opts.Workdir, "!"+opts.RootFS),
+			opts.RootFS, append(opts.Exclusions, opts.Workdir, execdir, "!"+opts.RootFS),
 		); err != nil {
 			return err
 		} else {
@@ -178,7 +186,7 @@ var loadCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
-		err := load(&opts)
+		_, err := load(&opts)
 		if err != nil && opts.Eval {
 			fmt.Print("false")
 		}
@@ -186,61 +194,91 @@ var loadCmd = &cobra.Command{
 	},
 }
 
-func addFlags() {
-	execdir := util.GetExecDir()
+var prootCmd = &cobra.Command{
+	Use:  "proot",
+	Args: cobra.MinimumNArgs(1), // Ensure exactly 1 argument is provided
+	RunE: func(cmd *cobra.Command, args []string) error {
+		opts.Image = args[0]
+		opts.Cmd = args[1:]
+		return proot(&opts)
+	},
+}
 
+func addFlags() {
+
+	// Global flags
 	RootCmd.PersistentFlags().StringVarP(
 		&opts.RootFS, "rootfs", "R", "/", "RootFS directory; or use GIVME_ROOTFS")
 	RootCmd.MarkPersistentFlagDirname("rootfs")
 
 	RootCmd.PersistentFlags().StringVarP(
-		&opts.Workdir, "workdir", "W", execdir, "Working directory; or use GIVME_WORKDIR")
+		&opts.Workdir, "workdir", "W", filepath.Join(execdir, "tmp"), "Working directory; or use GIVME_WORKDIR")
 	RootCmd.MarkPersistentFlagDirname("workdir")
 
 	RootCmd.PersistentFlags().StringSliceVarP(
 		&opts.Exclusions, "exclude", "X", nil, "Excluded directories; or use GIVME_EXCLUDE")
 
-	RootCmd.PersistentFlags().BoolVarP(
-		&opts.Eval, "eval", "e", false, "Output might be evaluated")
-
-	RootCmd.PersistentFlags().StringVarP(
-		&opts.TarFile, "tar-file", "f", "", "Path to the tar file")
-	RootCmd.MarkPersistentFlagFilename("tar-file", ".tar")
-	restoreCmd.MarkPersistentFlagRequired("tar-file")
-
-	RootCmd.PersistentFlags().StringVarP(
-		&opts.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
-	RootCmd.MarkPersistentFlagFilename("dotenv-file", ".env")
-
-	RootCmd.PersistentFlags().IntVar(
-		&opts.Retry, "retry", 0, "Retry attempts of saving the image; or use GIVME_RETRY")
-
-	RootCmd.PersistentFlags().StringVar(
-		&opts.RegistryMirror, "registry-mirror", "",
-		"Registry mirror; or use GIVME_REGISTRY_MIRROR",
-	)
-
-	RootCmd.PersistentFlags().StringVar(
-		&opts.RegistryUsername, "registry-username", "",
-		"Username for registry authentication; or use GIVME_REGISTRY_USERNAME",
-	)
-
-	RootCmd.PersistentFlags().StringVar(
-		&opts.RegistryPassword, "registry-password", "",
-		"Password for registry authentication; or use GIVME_REGISTRY_PASSWORD",
-	)
-
 	// Logging flags
 	RootCmd.PersistentFlags().StringVarP(
-		&logLevel, "verbosity", "v", logging.DefaultLevel,
+		&opts.LogLevel, "verbosity", "v", logging.DefaultLevel,
 		"Log level (trace, debug, info, warn, error, fatal, panic)",
 	)
 	RootCmd.PersistentFlags().StringVar(
-		&logFormat, "log-format", logging.FormatColor,
+		&opts.LogFormat, "log-format", logging.FormatColor,
 		"Log format (text, color, json)",
 	)
 	RootCmd.PersistentFlags().BoolVar(
-		&logTimestamp, "log-timestamp", logging.DefaultLogTimestamp,
+		&opts.LogTimestamp, "log-timestamp", logging.DefaultLogTimestamp,
 		"Timestamp in log output",
 	)
+
+	// Subcommand flags
+
+	// --eval
+	mkFlags(
+		func(cmd *cobra.Command) {
+			cmd.Flags().BoolVarP(&opts.Eval, "eval", "e", false, "Output might be evaluated")
+		},
+		restoreCmd, loadCmd, getenvCmd,
+	)
+
+	// --tar-file
+	mkFlags(
+		func(cmd *cobra.Command) {
+			cmd.Flags().StringVarP(
+				&opts.TarFile, "tar-file", "f", "", "Path to the tar file")
+			cmd.MarkFlagFilename("tar-file", ".tar")
+		},
+		snapshotCmd, saveCmd, prootCmd, exportCmd, restoreCmd,
+	)
+	restoreCmd.MarkFlagRequired("tar-file")
+
+	// --dotenv-file
+	mkFlags(
+		func(cmd *cobra.Command) {
+			cmd.Flags().StringVarP(
+				&opts.DotenvFile, "dotenv-file", "d", "", "Path to the .env file")
+			cmd.MarkFlagFilename("dotenv-file", ".env")
+		},
+		snapshotCmd, getenvCmd, restoreCmd,
+	)
+
+	// --retry and --registry-[mirror|username|password]
+	mkFlags(
+		func(cmd *cobra.Command) {
+			cmd.Flags().IntVar(
+				&opts.Retry, "retry", 0, "Retry attempts of saving the image; or use GIVME_RETRY")
+			cmd.Flags().StringVarP(
+				&opts.RegistryMirror, "registry-mirror", "m", "", "Registry mirror; or use GIVME_REGISTRY_MIRROR")
+			cmd.Flags().StringVar(
+				&opts.RegistryUsername, "registry-username", "", "Username for registry authentication; or use GIVME_REGISTRY_USERNAME")
+			cmd.Flags().StringVar(
+				&opts.RegistryPassword, "registry-password", "", "Password for registry authentication; or use GIVME_REGISTRY_PASSWORD")
+		},
+		saveCmd, exportCmd, getenvCmd, loadCmd, prootCmd,
+	)
+
+	// --entrypoint
+	prootCmd.Flags().StringVar(
+		&opts.Entrypoint, "entrypoint", "", "Entrypoint for the container")
 }

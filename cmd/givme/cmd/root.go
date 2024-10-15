@@ -14,8 +14,13 @@ import (
 )
 
 const (
-	NAME    = "givme"
-	VERSION = "0.0.0"
+	AppName = "givme"
+)
+
+var (
+	Version   string
+	Commit    string
+	BuildDate string
 )
 
 type CommandOptions struct {
@@ -118,7 +123,7 @@ func init() {
 		cmd.Flags().StringVar(
 			&opts.RegistryMirror, "registry-mirror", opts.RegistryMirror, "Registry mirror; or use GIVME_REGISTRY_MIRROR")
 		cmd.Flags().StringVar(
-			&opts.RegistryUsername, "registry-username", opts.RegistryUsername, "Username for registry authentication; or use GIVME_REGISTRY_USERNAME")
+			&opts.RegistryUsername, "registry-username", opts.RegistryUsername, "Username for registry authentication; or use GIVME_REGISTRY_USERAppName")
 		cmd.Flags().StringVar(
 			&opts.RegistryPassword, "registry-password", opts.RegistryPassword, "Password for registry authentication; or use GIVME_REGISTRY_PASSWORD")
 	},
@@ -141,7 +146,7 @@ func init() {
 	runCmd.Flags().MarkHidden("proot-flags")
 
 	// Initialize viper and bind flags to environment variables
-	viper.SetEnvPrefix(NAME) // Environment variables prefixed with GIVME_
+	viper.SetEnvPrefix(AppName) // Environment variables prefixed with GIVME_
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv() // Automatically bind environment variables
 
@@ -160,8 +165,8 @@ func init() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   NAME,
-	Short: fmt.Sprintf("%s - Switch the image from inside the container", NAME),
+	Use:   AppName,
+	Short: fmt.Sprintf("%s - Switch the image from inside the container", AppName),
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Set variables from flags or environment
 		viper.BindPFlags(cmd.Flags())
@@ -305,6 +310,6 @@ var versionCmd = &cobra.Command{
 	Aliases: []string{"v", "ver"},
 	Short:   "Display version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Version: ", VERSION)
+		fmt.Printf("Version: %s\nCommit: %s\nBuild Date: %s\n", Version, Commit, BuildDate)
 	},
 }

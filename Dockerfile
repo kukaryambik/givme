@@ -6,7 +6,7 @@ RUN apk add --no-cache build-base wget linux-headers perl
 ARG BUSYBOX_VERSION=1.36.1
 
 # Download BusyBox source code
-RUN wget -O- https://busybox.net/downloads/busybox-${BUSYBOX_VERSION}.tar.bz2 | tar xjf -
+RUN wget -qO- https://busybox.net/downloads/busybox-${BUSYBOX_VERSION}.tar.bz2 | tar xjf -
 
 WORKDIR /busybox-${BUSYBOX_VERSION}
 

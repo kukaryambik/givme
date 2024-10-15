@@ -28,12 +28,10 @@ func run(opts *CommandOptions) error {
 		return err
 	}
 
-	// Get the image config
-	imgConf, err := img.Config()
-	if err != nil {
-		return err
+	// Set the rootfs directory
+	if opts.RootFS == "" || opts.RootFS == "/" {
+		opts.RootFS = filepath.Join(dir, "rootfs")
 	}
-	cfg := imgConf.Config
 
 	// Configure ignored paths
 	ignoreConf := paths.Ignore(opts.IgnorePaths).ExclFromList(opts.RootFS)
@@ -42,6 +40,14 @@ func run(opts *CommandOptions) error {
 		return err
 	}
 
+	// Get the image config
+	imgConf, err := img.Config()
+	if err != nil {
+		return err
+	}
+	cfg := imgConf.Config
+
+	// Create the proot command
 	bin := filepath.Join(paths.GetExecDir(), "proot")
 	cmd := exec.Command(bin, "--kill-on-exit")
 

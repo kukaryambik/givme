@@ -3,27 +3,30 @@ package cmd
 import (
 	"path/filepath"
 
-	"github.com/kukaryambik/givme/pkg/util"
+	"github.com/kukaryambik/givme/pkg/image"
+	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/sirupsen/logrus"
 )
 
 func export(opts *CommandOptions) error {
 
-	saveOpts := *opts
-	saveOpts.TarFile = ""
-	img, err := save(&saveOpts)
+	dir, err := image.MkImageDir(opts.Workdir, opts.Image)
 	if err != nil {
 		return err
 	}
 
 	if opts.TarFile == "" {
-		imgSlug := util.Slugify(img.Name)
-		opts.TarFile = filepath.Join(opts.Workdir, imgSlug+".fs.tar")
+		opts.TarFile = filepath.Join(dir, "fs.tar")
 	}
 
-	if util.IsFileExists(opts.TarFile) {
+	if paths.IsFileExists(opts.TarFile) {
 		logrus.Warnf("File %s already exists. Skipping export.", opts.TarFile)
 		return nil
+	}
+
+	img, err := image.Load(opts.Image)
+	if err != nil {
+		return err
 	}
 
 	if err := img.Export(opts.TarFile); err != nil {

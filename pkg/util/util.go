@@ -1,12 +1,7 @@
 package util
 
 import (
-	"bufio"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -53,135 +48,8 @@ func Retry(retries int, sleep time.Duration, fn func() error) error {
 	return fmt.Errorf("after %d attempts, last error: %s", retries, err)
 }
 
-func MergeStructs(src, dst interface{}, overwrite ...bool) {
-	logrus.Debugf("Merging structs: %v, %v", src, dst)
-	srcVal := reflect.ValueOf(src).Elem() // Get Value for reading fields
-	dstVal := reflect.ValueOf(dst).Elem() // Get Value for setting fields
-
-	for i := 0; i < dstVal.NumField(); i++ {
-		srcField := srcVal.Field(i)
-		dstField := dstVal.Field(i)
-
-		// Check if the source field is not zero (non-empty)
-		if !srcField.IsZero() && dstField.CanSet() {
-			if len(overwrite) > 0 && overwrite[0] {
-				dstField.Set(srcField)
-			} else if dstField.IsZero() {
-				dstField.Set(srcField)
-			}
-		}
-	}
-	logrus.Debugf("Merged struct: %v", dst)
-}
-
 // Slugify converts a string into a slug (URL-friendly format).
 func Slugify(s string) string {
 	re := regexp.MustCompile(`[^a-zA-Z0-9]+`)
 	return strings.Trim(re.ReplaceAllString(s, "-"), "-")
-}
-
-// Rmrf removes all files and directories in the provided paths.
-func Rmrf(paths ...string) error {
-	for _, path := range paths {
-		err := os.RemoveAll(path)
-		if err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("failed to remove %s: %w", path, err)
-		}
-	}
-	return nil
-}
-
-// GetExecDir returns the directory of the current executable.
-func GetExecDir() string {
-	exe, err := os.Executable()
-	if err != nil {
-		exe = "."
-	}
-	dir := filepath.Dir(exe)
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		logrus.Warnf("failed to get absolute path: %v", err)
-		return dir
-	}
-	return absDir
-}
-
-// GetMounts returns a list of mounted directories.
-func GetMounts() ([]string, error) {
-	file, err := os.Open("/proc/mounts")
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var dirs []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		fields := strings.Fields(scanner.Text())
-		if len(fields) >= 2 && fields[1] != "/" {
-			dirs = append(dirs, fields[1])
-		}
-	}
-	return dirs, scanner.Err()
-}
-
-func AbsAll(paths []string) ([]string, error) {
-	var absPaths []string
-
-	for _, p := range paths {
-		ap, err := filepath.Abs(p)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get absolute path: %w", err)
-		}
-		absPaths = append(absPaths, ap)
-	}
-
-	return absPaths, nil
-}
-
-// IsPathFrom checks if a path originates from any of the listed paths.
-func IsPathFrom(path string, list []string) bool {
-	for _, base := range list {
-		if path == base || strings.HasPrefix(path, base+string(os.PathSeparator)) {
-			return true
-		}
-	}
-	return false
-}
-
-// IsPathContains checks if a path contains any of the listed paths.
-func IsPathContains(rootpath, path string, list []string) bool {
-	if path == rootpath {
-		return true
-	}
-	for _, subPath := range list {
-		if path == subPath || strings.HasPrefix(subPath, path+string(os.PathSeparator)) {
-			return true
-		}
-	}
-	return false
-}
-
-// IsDirEmpty checks if the specified directory is empty.
-func IsDirEmpty(dir string) (bool, error) {
-	f, err := os.Open(dir)
-	if err != nil {
-		return false, err
-	}
-	defer f.Close()
-
-	_, err = f.Readdirnames(1)
-	if err == io.EOF {
-		return true, nil
-	}
-	return false, err
-}
-
-// IsFileExists checks if the specified file exists.
-func IsFileExists(path string) bool {
-	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return err == nil
 }

@@ -52,40 +52,181 @@ curl --version
 
 ### Commands and flags
 
-Available Commands:
+#### Available Commands
 
-```sh
+```txt
   cleanup     Clean up directories
   completion  Generate the autocompletion script for the specified shell
-  export      Export container image tar and config
+  export      Export container filesystem as a tarball
   getenv      Get container image environment variables
   help        Help about any command
-  load        Load container image tar and apply it to the system
+  load        Extract the container filesystem to the rootfs directory
+  proot       Run a command in a container using proot
   restore     Restore from a snapshot archive
   save        Save image to tar archive
   snapshot    Create a snapshot archive
+  version     Display version information
 ```
 
-Global Flags:
+#### Global Flags
 
-```sh
-  -d, --dotenv-file string         Path to the .env file
-  -e, --eval                       Output might be evaluated
-  -X, --exclude strings            Excluded directories; or use GIVME_EXCLUDE
-      --log-format string          Log format (text, color, json) (default "color")
-      --log-timestamp              Timestamp in log output
+```txt
+  -h, --help                help for givme
+  -i, --ignore strings      Ignore these paths; or use GIVME_IGNORE
+      --log-format string   Log format (text, color, json) (default "color")
+      --log-timestamp       Timestamp in log output (default true)
+  -r, --rootfs string       RootFS directory; or use GIVME_ROOTFS (default "/")
+  -v, --verbosity string    Log level (trace, debug, info, warn, error, fatal, panic) (default "info")
+      --workdir string      Working directory; or use GIVME_WORKDIR (default "/givme/tmp")
+```
+
+#### Cleanup
+
+```txt
+Clean up directories
+
+Usage:
+  givme cleanup [flags]
+
+Aliases:
+  cleanup, c, clean
+```
+
+#### Export
+
+```txt
+Export container filesystem as a tarball
+
+Usage:
+  givme export [flags] IMAGE
+
+Aliases:
+  export, e
+
+Flags:
+  -h, --help                       help for export
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
       --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
-      --retry int                  Retry attempts of saving the image; or use GIVME_RETRY
-  -R, --rootfs string              RootFS directory; or use GIVME_ROOTFS (default "/")
+      --retry int                  Retry attempts of downloading the image; or use GIVME_RETRY
   -f, --tar-file string            Path to the tar file
-  -v, --verbosity string           Log level (trace, debug, info, warn, error, fatal, panic) (default "info")
-  -W, --workdir string             Working directory; or use GIVME_WORKDIR (default "/givme")
+```
+
+#### Getenv
+
+```txt
+Get container image environment variables
+
+Usage:
+  givme getenv [flags] IMAGE
+
+Aliases:
+  getenv, env
+
+Flags:
+  -d, --dotenv-file string         Path to the .env file
+  -E, --eval                       Output might be evaluated
+  -h, --help                       help for getenv
+      --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
+      --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
+      --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
+      --retry int                  Retry attempts of downloading the image; or use GIVME_RETRY
+```
+
+#### Load
+
+```txt
+Usage:
+  givme load [flags] IMAGE
+
+Aliases:
+  load, l
+
+Flags:
+  -E, --eval                       Output might be evaluated
+  -h, --help                       help for load
+      --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
+      --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
+      --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
+      --retry int                  Retry attempts of downloading the image; or use GIVME_RETRY
+```
+
+#### Restore
+
+```txt
+Usage:
+  givme restore [flags] FILE
+
+Aliases:
+  restore, rstr
+
+Flags:
+  -d, --dotenv-file string   Path to the .env file
+  -E, --eval                 Output might be evaluated
+  -h, --help                 help for restore
+```
+
+#### Run
+
+```txt
+Usage:
+  givme run [flags] IMAGE [cmd]...
+
+Aliases:
+  run, r, proot
+
+Flags:
+  -u, --change-id string           UID:GID for the container (default "0:0")
+      --cleanup                    Clean up root directory before load (default true)
+  -w, --cwd string                 Working directory for the container
+      --entrypoint string          Entrypoint for the container
+  -h, --help                       help for run
+      --mount stringArray          Mount host path to the container
+      --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
+      --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
+      --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
+      --retry int                  Retry attempts of downloading the image; or use GIVME_RETRY
+```
+
+#### Save
+
+```txt
+sage:
+  givme save [flags] IMAGE
+
+Aliases:
+  save, download, pull
+
+Flags:
+  -h, --help                       help for save
+      --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
+      --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
+      --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
+      --retry int                  Retry attempts of downloading the image; or use GIVME_RETRY
+  -f, --tar-file string            Path to the tar file
+```
+
+#### Snapshot
+
+```txt
+Create a snapshot archive
+
+Usage:
+  givme snapshot [flags]
+
+Aliases:
+  snapshot, snap
+
+Flags:
+  -d, --dotenv-file string   Path to the .env file
+  -h, --help                 help for snapshot
+  -f, --tar-file string      Path to the tar file
 ```
 
 ## TODO
 
-- [ ] Add volumes
-- [ ] Chroot (or something like this) as an option
+- [x] Add volumes (in chroot)
+- [x] Chroot (or something like this) as an option
 - [x] Retry for docker pull
+- [ ] TESTS!!!
+- [ ] Webserver to control it with API

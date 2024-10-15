@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/kukaryambik/givme/pkg/util"
+	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/sirupsen/logrus"
 )
 
@@ -31,7 +31,7 @@ func Tar(src, dst string, excl []string) error {
 		return fmt.Errorf("failed to get absolute path for dst %s: %v", dst, err)
 	}
 
-	absExcl, err := util.AbsAll(excl)
+	absExcl, err := paths.AbsAll(excl)
 	if err != nil {
 		return fmt.Errorf("failed to convert exclusion list to absolute paths: %v", err)
 	}
@@ -72,7 +72,7 @@ func Tar(src, dst string, excl []string) error {
 			return err
 		}
 
-		if util.IsPathFrom(file, absExcl) {
+		if paths.IsPathFrom(file, absExcl) {
 			logrus.Tracef("Excluding: %s", file)
 			if fi.IsDir() {
 				return filepath.SkipDir

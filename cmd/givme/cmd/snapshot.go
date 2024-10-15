@@ -7,7 +7,7 @@ import (
 
 	"github.com/kukaryambik/givme/pkg/archiver"
 	"github.com/kukaryambik/givme/pkg/envars"
-	"github.com/kukaryambik/givme/pkg/util"
+	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/sirupsen/logrus"
 )
 
@@ -19,7 +19,7 @@ func snapshot(opts *CommandOptions) error {
 	logrus.Debugf("Starting snapshot creation...")
 
 	// Check if the file already exists.
-	if util.IsFileExists(opts.TarFile) {
+	if paths.IsFileExists(opts.TarFile) {
 		logrus.Warnf("File %s already exists", opts.TarFile)
 		return nil
 	}
@@ -30,9 +30,16 @@ func snapshot(opts *CommandOptions) error {
 		return fmt.Errorf("error saving environment variables %s: %v", opts.DotenvFile, err)
 	}
 
+	// Configure ignored paths
+	ignoreConf := paths.Ignore(opts.IgnorePaths).ExclFromList(opts.RootFS)
+	ignores, err := ignoreConf.AddPaths(opts.Workdir).List()
+	if err != nil {
+		return err
+	}
+
 	// Create the tar archive
 	logrus.Debugf("Creating tar archive: %s", opts.TarFile)
-	if err := archiver.Tar(opts.RootFS, opts.TarFile, opts.Exclusions); err != nil {
+	if err := archiver.Tar(opts.RootFS, opts.TarFile, ignores); err != nil {
 		return err
 	}
 	logrus.Infof("Snapshot has created!\n\ttarball: %s\n\tdotenv: %s", opts.TarFile, opts.DotenvFile)

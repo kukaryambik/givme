@@ -2,8 +2,6 @@
 
 _«Givme, givme more, givme more, givme, givme more!»_
 
-[[TOC]]
-
 ## The main idea
 
 Switch the image from inside the container.

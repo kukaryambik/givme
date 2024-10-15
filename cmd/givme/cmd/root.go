@@ -14,13 +14,14 @@ import (
 )
 
 const (
-	appName = "givme"
+	NAME    = "givme"
+	VERSION = "0.0.0"
 )
 
 type CommandOptions struct {
 	Cleanup          bool `mapstructure:"cleanup"`
 	Cmd              []string
-	DotenvFile       string   `mapstructure:"dotenv-file"`
+	DotenvFile       string
 	Eval             bool     `mapstructure:"eval"`
 	IgnorePaths      []string `mapstructure:"ignore"`
 	Image            string
@@ -30,14 +31,14 @@ type CommandOptions struct {
 	ProotCwd         string   `mapstructure:"cwd"`
 	ProotEntrypoint  string   `mapstructure:"entrypoint"`
 	ProotFlags       []string `mapstructure:"proot-flags"`
-	ProotVolumes     []string
-	ProotUser        string `mapstructure:"user"`
-	RegistryMirror   string `mapstructure:"registry-mirror"`
-	RegistryPassword string `mapstructure:"registry-password"`
-	RegistryUsername string `mapstructure:"registry-username"`
-	Retry            int    `mapstructure:"retry"`
-	RootFS           string `mapstructure:"rootfs"`
-	TarFile          string `mapstructure:"tar-file"`
+	ProotMounts      []string `mapstructure:"mount"`
+	ProotUser        string   `mapstructure:"change-id"`
+	RegistryMirror   string   `mapstructure:"registry-mirror"`
+	RegistryPassword string   `mapstructure:"registry-password"`
+	RegistryUsername string   `mapstructure:"registry-username"`
+	Retry            int      `mapstructure:"retry"`
+	RootFS           string   `mapstructure:"rootfs"`
+	TarFile          string
 	Workdir          string `mapstructure:"workdir"`
 }
 
@@ -48,8 +49,15 @@ var opts = &CommandOptions{
 	LogFormat:    logging.FormatColor,
 	LogLevel:     logging.DefaultLevel,
 	LogTimestamp: true,
+	ProotUser:    "0:0",
 	RootFS:       "/",
 	Workdir:      filepath.Join(paths.GetExecDir(), "tmp"),
+}
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
 
 func mkFlags(c func(*cobra.Command), l ...*cobra.Command) {
@@ -60,40 +68,29 @@ func mkFlags(c func(*cobra.Command), l ...*cobra.Command) {
 
 func init() {
 	// Global flags
-	// --rootfs -r
-	RootCmd.PersistentFlags().StringVarP(
+	rootCmd.PersistentFlags().StringVarP(
 		&opts.RootFS, "rootfs", "r", opts.RootFS, "RootFS directory; or use GIVME_ROOTFS")
-	RootCmd.MarkPersistentFlagDirname("rootfs")
-	// --workdir
-	RootCmd.PersistentFlags().StringVar(
+	rootCmd.MarkPersistentFlagDirname("rootfs")
+	rootCmd.PersistentFlags().StringVar(
 		&opts.Workdir, "workdir", opts.Workdir, "Working directory; or use GIVME_WORKDIR")
-	RootCmd.MarkPersistentFlagDirname("workdir")
-	// --ignore -i
-	RootCmd.PersistentFlags().StringSliceVarP(
+	rootCmd.MarkPersistentFlagDirname("workdir")
+	rootCmd.PersistentFlags().StringSliceVarP(
 		&opts.IgnorePaths, "ignore", "i", nil, "Ignore these paths; or use GIVME_IGNORE")
 
 	// Logging flags
-	// --verbosity -v
-	RootCmd.PersistentFlags().StringVarP(
-		&opts.LogLevel, "verbosity", "v", opts.LogLevel,
-		"Log level (trace, debug, info, warn, error, fatal, panic)",
-	)
-	// --log-format
-	RootCmd.PersistentFlags().StringVar(
-		&opts.LogFormat, "log-format", opts.LogFormat,
-		"Log format (text, color, json)",
-	)
-	// --log-timestamp
-	RootCmd.PersistentFlags().BoolVar(
-		&opts.LogTimestamp, "log-timestamp", opts.LogTimestamp,
-		"Timestamp in log output",
-	)
+	rootCmd.PersistentFlags().StringVarP(
+		&opts.LogLevel, "verbosity", "v", opts.LogLevel, "Log level (trace, debug, info, warn, error, fatal, panic)")
+	rootCmd.PersistentFlags().StringVar(
+		&opts.LogFormat, "log-format", opts.LogFormat, "Log format (text, color, json)")
+	rootCmd.PersistentFlags().BoolVar(
+		&opts.LogTimestamp, "log-timestamp", opts.LogTimestamp, "Timestamp in log output")
 
 	// Subcommand flags
-	// --eval -e
+	// --eval -E
 	mkFlags(func(cmd *cobra.Command) {
-		cmd.Flags().BoolVarP(&opts.Eval, "eval", "e", opts.Eval, "Output might be evaluated")
+		cmd.Flags().BoolVarP(&opts.Eval, "eval", "E", opts.Eval, "Output might be evaluated")
 	},
+		// Add them to the list of subcommands
 		restoreCmd, loadCmd, getenvCmd,
 	)
 	// --tar-file -f
@@ -102,21 +99,22 @@ func init() {
 			&opts.TarFile, "tar-file", "f", opts.TarFile, "Path to the tar file")
 		cmd.MarkFlagFilename("tar-file", ".tar")
 	},
-		snapshotCmd, saveCmd, prootCmd, exportCmd, restoreCmd,
+		// Add them to the list of subcommands
+		snapshotCmd, saveCmd, exportCmd,
 	)
-	restoreCmd.MarkFlagRequired("tar-file")
 	// --dotenv-file -d
 	mkFlags(func(cmd *cobra.Command) {
 		cmd.Flags().StringVarP(
 			&opts.DotenvFile, "dotenv-file", "d", opts.DotenvFile, "Path to the .env file")
 		cmd.MarkFlagFilename("dotenv-file", ".env")
 	},
+		// Add them to the list of subcommands
 		snapshotCmd, getenvCmd, restoreCmd,
 	)
 	// --retry and --registry-[mirror|username|password]
 	mkFlags(func(cmd *cobra.Command) {
 		cmd.Flags().IntVar(
-			&opts.Retry, "retry", 0, "Retry attempts of saving the image; or use GIVME_RETRY")
+			&opts.Retry, "retry", 0, "Retry attempts of downloading the image; or use GIVME_RETRY")
 		cmd.Flags().StringVar(
 			&opts.RegistryMirror, "registry-mirror", opts.RegistryMirror, "Registry mirror; or use GIVME_REGISTRY_MIRROR")
 		cmd.Flags().StringVar(
@@ -124,48 +122,46 @@ func init() {
 		cmd.Flags().StringVar(
 			&opts.RegistryPassword, "registry-password", opts.RegistryPassword, "Password for registry authentication; or use GIVME_REGISTRY_PASSWORD")
 	},
-		saveCmd, exportCmd, getenvCmd, loadCmd, prootCmd,
+		// Add them to the list of subcommands
+		saveCmd, exportCmd, getenvCmd, loadCmd, runCmd,
 	)
-	// --entrypoint
-	prootCmd.Flags().StringVar(
+
+	runCmd.Flags().StringVar(
 		&opts.ProotEntrypoint, "entrypoint", opts.ProotEntrypoint, "Entrypoint for the container")
-	// --cleanup
-	prootCmd.Flags().BoolVar(
+	runCmd.Flags().BoolVar(
 		&opts.Cleanup, "cleanup", opts.Cleanup, "Clean up root directory before load")
-	// --cwd -w
-	prootCmd.Flags().StringVarP(
+	runCmd.Flags().StringVarP(
 		&opts.ProotCwd, "cwd", "w", opts.ProotCwd, "Working directory for the container")
-	// --volume
-	prootCmd.Flags().StringArrayVar(
-		&opts.ProotVolumes, "volume", opts.ProotVolumes, "Bind mount a volume")
-	// --user -u
-	prootCmd.Flags().StringVarP(
-		&opts.ProotUser, "user", "u", opts.ProotUser, "User for the container")
-	// --proot-flags
-	prootCmd.Flags().StringSliceVar(
+	runCmd.Flags().StringArrayVar(
+		&opts.ProotMounts, "mount", opts.ProotMounts, "Mount host path to the container")
+	runCmd.Flags().StringVarP(
+		&opts.ProotUser, "change-id", "u", opts.ProotUser, "UID:GID for the container")
+	runCmd.Flags().StringSliceVar(
 		&opts.ProotFlags, "proot-flags", opts.ProotFlags, "Additional flags for proot")
-	prootCmd.Flags().MarkHidden("proot-flags")
+	runCmd.Flags().MarkHidden("proot-flags")
 
 	// Initialize viper and bind flags to environment variables
-	viper.SetEnvPrefix(appName) // Environment variables prefixed with GIVME_
+	viper.SetEnvPrefix(NAME) // Environment variables prefixed with GIVME_
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv() // Automatically bind environment variables
 
 	// Add subcommands for snapshot, restore, and cleanup.
-	RootCmd.AddCommand(
+	rootCmd.AddCommand(
 		cleanupCmd,
 		exportCmd,
 		getenvCmd,
 		loadCmd,
-		prootCmd,
+		runCmd,
 		restoreCmd,
 		saveCmd,
 		snapshotCmd,
+		versionCmd,
 	)
 }
 
-var RootCmd = &cobra.Command{
-	Use: appName,
+var rootCmd = &cobra.Command{
+	Use:   NAME,
+	Short: fmt.Sprintf("%s - Switch the image from inside the container", NAME),
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Set variables from flags or environment
 		viper.BindPFlags(cmd.Flags())
@@ -182,7 +178,7 @@ var RootCmd = &cobra.Command{
 		}
 
 		// Ensure the work directory exists.
-		if err := os.MkdirAll(opts.Workdir, 0755); err != nil {
+		if err := os.MkdirAll(opts.Workdir, os.ModePerm); err != nil {
 			logrus.Fatalf("Error creating work directory: %v", err)
 		}
 
@@ -191,8 +187,9 @@ var RootCmd = &cobra.Command{
 }
 
 var snapshotCmd = &cobra.Command{
-	Use:   "snapshot",
-	Short: "Create a snapshot archive",
+	Use:     "snapshot",
+	Aliases: []string{"snap"},
+	Short:   "Create a snapshot archive",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if opts.TarFile == "" {
 			opts.TarFile = filepath.Join(opts.Workdir, defaultSnapshotName+".tar")
@@ -202,14 +199,19 @@ var snapshotCmd = &cobra.Command{
 		}
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		cmd.SilenceUsage = true
 		return snapshot(opts)
 	},
 }
 
 var restoreCmd = &cobra.Command{
-	Use:   "restore",
-	Short: "Restore from a snapshot archive",
+	Use:     "restore [flags] FILE",
+	Aliases: []string{"rstr"},
+	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
+	Short:   "Restore from a snapshot archive",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		opts.TarFile = args[0]
+		cmd.SilenceUsage = true
 		err := restore(opts)
 		if err != nil && opts.Eval {
 			fmt.Print("false")
@@ -219,39 +221,48 @@ var restoreCmd = &cobra.Command{
 }
 
 var cleanupCmd = &cobra.Command{
-	Use:   "cleanup",
-	Short: "Clean up directories",
+	Use:     "cleanup",
+	Aliases: []string{"c", "clean"},
+	Short:   "Clean up directories",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		cmd.SilenceUsage = true
 		return cleanup(opts)
 	},
 }
 
 var saveCmd = &cobra.Command{
-	Use:   "save",
-	Short: "Save image to tar archive",
+	Use:     "save [flags] IMAGE",
+	Aliases: []string{"download", "pull"},
+	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
+	Short:   "Save image to tar archive",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
+		cmd.SilenceUsage = true
 		_, err := save(opts)
 		return err
 	},
 }
 
 var exportCmd = &cobra.Command{
-	Use:   "export",
-	Short: "Export container image tar and config",
-	Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
+	Use:     "export [flags] IMAGE",
+	Aliases: []string{"e"},
+	Short:   "Export container filesystem as a tarball",
+	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
+		cmd.SilenceUsage = true
 		return export(opts)
 	},
 }
 
 var getenvCmd = &cobra.Command{
-	Use:   "getenv",
-	Short: "Get container image environment variables",
-	Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
+	Use:     "getenv [flags] IMAGE",
+	Aliases: []string{"env"},
+	Short:   "Get container image environment variables",
+	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
+		cmd.SilenceUsage = true
 		err := getenv(opts)
 		if err != nil && opts.Eval {
 			fmt.Print("false")
@@ -261,11 +272,13 @@ var getenvCmd = &cobra.Command{
 }
 
 var loadCmd = &cobra.Command{
-	Use:   "load",
-	Short: "Load container image tar and apply it to the system",
-	Args:  cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
+	Use:     "load [flags] IMAGE",
+	Aliases: []string{"l"},
+	Short:   "Extract the container filesystem to the rootfs directory",
+	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
+		cmd.SilenceUsage = true
 		_, err := load(opts)
 		if err != nil && opts.Eval {
 			fmt.Print("false")
@@ -274,12 +287,24 @@ var loadCmd = &cobra.Command{
 	},
 }
 
-var prootCmd = &cobra.Command{
-	Use:  "proot",
-	Args: cobra.MinimumNArgs(1), // Ensure exactly 1 argument is provided
+var runCmd = &cobra.Command{
+	Use:     "run [flags] IMAGE [cmd]...",
+	Aliases: []string{"r", "proot"},
+	Short:   "Run a command in a container",
+	Args:    cobra.MinimumNArgs(1), // Ensure exactly 1 argument is provided
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
 		opts.Cmd = args[1:]
-		return proot(opts)
+		cmd.SilenceUsage = true
+		return run(opts)
+	},
+}
+
+var versionCmd = &cobra.Command{
+	Use:     "version",
+	Aliases: []string{"v", "ver"},
+	Short:   "Display version information",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("Version: ", VERSION)
 	},
 }

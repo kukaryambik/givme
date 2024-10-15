@@ -14,7 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func proot(opts *CommandOptions) error {
+func run(opts *CommandOptions) error {
 
 	// Get the image
 	img, err := save(opts)
@@ -28,17 +28,12 @@ func proot(opts *CommandOptions) error {
 		return err
 	}
 
-	tmpFS := filepath.Join(dir, "fs.tar")
-	defer os.Remove(tmpFS)
-	if err := img.Export(tmpFS); err != nil {
+	// Get the image config
+	imgConf, err := img.Config()
+	if err != nil {
 		return err
 	}
-
-	if opts.Cleanup {
-		if err := cleanup(opts); err != nil {
-			return err
-		}
-	}
+	cfg := imgConf.Config
 
 	// Configure ignored paths
 	ignoreConf := paths.Ignore(opts.IgnorePaths).ExclFromList(opts.RootFS)
@@ -46,16 +41,6 @@ func proot(opts *CommandOptions) error {
 	if err != nil {
 		return err
 	}
-
-	if err := archiver.Untar(tmpFS, opts.RootFS, ignores); err != nil {
-		return err
-	}
-
-	imgConf, err := img.Config()
-	if err != nil {
-		return err
-	}
-	cfg := imgConf.Config
 
 	bin := filepath.Join(paths.GetExecDir(), "proot")
 	cmd := exec.Command(bin, "--kill-on-exit")
@@ -98,6 +83,11 @@ func proot(opts *CommandOptions) error {
 		cmd.Args = append(cmd.Args, f)
 	}
 
+	for _, m := range opts.ProotMounts {
+		f := fmt.Sprintf("--bind=%s", m)
+		cmd.Args = append(cmd.Args, f)
+	}
+
 	// add volumes
 	for v := range cfg.Volumes {
 		tmpDir := filepath.Join(dir, "vol_"+util.Slugify(v))
@@ -136,9 +126,28 @@ func proot(opts *CommandOptions) error {
 	cmd.Stderr = os.Stderr
 
 	cmd.Env = cfg.Env
-
 	logrus.Debugln(cmd.Args)
 
+	// Export the image filesystem to the tar file
+	tmpFS := filepath.Join(dir, "fs.tar")
+	defer os.Remove(tmpFS)
+	if err := img.Export(tmpFS); err != nil {
+		return err
+	}
+
+	// Clean up the rootfs
+	if opts.Cleanup {
+		if err := cleanup(opts); err != nil {
+			return err
+		}
+	}
+
+	// Untar the filesystem
+	if err := archiver.Untar(tmpFS, opts.RootFS, ignores); err != nil {
+		return err
+	}
+
+	// Run the command
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error running proot: %v", err)
 	}

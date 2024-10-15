@@ -29,11 +29,11 @@ curl --version
 ```sh
 docker run --rm -it ghcr.io/kukaryambik/givme:latest
 
-eval $(/givme/givme -E load alpine/helm)
+eval $(/givme/givme load -E alpine/helm)
 
 helm version
 
-eval $(/givme/givme -E load docker)
+eval $(/givme/givme load -E docker)
 
 docker version
 
@@ -44,16 +44,16 @@ Or even like this:
 ```sh
 docker run --rm -it ghcr.io/kukaryambik/givme:latest
 
-eval $(/givme/givme --eval load alpine)
+eval $(/givme/givme load --eval alpine)
 apk add --no-cache curl
 curl --version
 
 /givme/givme snapshot -f alpine-snapshot.tar -d alpine-snapshot.env
 
-eval $(/givme/givme --eval load ubuntu)
+eval $(/givme/givme load --eval ubuntu)
 apt
 
-eval $(/givme/givme -E restore alpine-snapshot.tar -d alpine-snapshot.env)
+eval $(/givme/givme restore -E -d alpine-snapshot.env alpine-snapshot.tar)
 curl --version
 
 ```

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/kukaryambik/givme/pkg/envars"
-	"github.com/kukaryambik/givme/pkg/util"
+	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/sirupsen/logrus"
 )
 
@@ -17,9 +17,13 @@ func getenv(opts *CommandOptions) error {
 		return err
 	}
 
+	dir, err := image.MkImageDir(opts.Workdir, opts.Image)
+	if err != nil {
+		return err
+	}
+
 	if opts.DotenvFile == "" {
-		imgSlug := util.Slugify(img.Name)
-		opts.DotenvFile = filepath.Join(opts.Workdir, imgSlug+".env")
+		opts.DotenvFile = filepath.Join(dir, "image.env")
 	}
 
 	logrus.Debugf("Fetching config file for image %s", img)

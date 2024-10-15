@@ -21,11 +21,11 @@ Switch the image from inside the container.
 ```sh
 docker run --rm -it ghcr.io/kukaryambik/givme:latest
 
-eval $(/givme/givme -e load curlimages/curl)
+eval $(/givme/givme -E load curlimages/curl)
 
 curl --version
 
-eval $(/givme/givme -e load docker)
+eval $(/givme/givme -E load docker)
 
 docker version
 
@@ -45,7 +45,7 @@ curl --version
 eval $(/givme/givme --eval load ubuntu)
 apt
 
-eval $(/givme/givme -e restore -f alpine-snapshot.tar -d alpine-snapshot.env)
+eval $(/givme/givme -E restore alpine-snapshot.tar -d alpine-snapshot.env)
 curl --version
 
 ```

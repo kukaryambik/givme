@@ -23,10 +23,10 @@ func load(opts *CommandOptions) (*image.Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	tmpFS := filepath.Join(opts.Workdir, dir, "fs.tar")
-	defer os.Remove(tmpFS)
+	fs := filepath.Join(dir, "fs.tar")
+	defer os.Remove(fs)
 
-	if err := img.Export(tmpFS); err != nil {
+	if err := img.Export(fs); err != nil {
 		return nil, err
 	}
 
@@ -41,7 +41,7 @@ func load(opts *CommandOptions) (*image.Image, error) {
 		return nil, err
 	}
 
-	if err := archiver.Untar(tmpFS, opts.RootFS, ignores); err != nil {
+	if err := archiver.Untar(fs, opts.RootFS, ignores); err != nil {
 		return nil, err
 	}
 

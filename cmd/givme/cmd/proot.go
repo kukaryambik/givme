@@ -7,23 +7,47 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/kukaryambik/givme/pkg/listpaths"
+	"github.com/kukaryambik/givme/pkg/archiver"
+	"github.com/kukaryambik/givme/pkg/image"
+	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
 )
 
 func proot(opts *CommandOptions) error {
 
-	imgSlug := util.Slugify(opts.Image)
-	opts.RootFS = filepath.Join(opts.Workdir, imgSlug, "rootfs")
-	newExclusions, err := listpaths.Excl("/", append(opts.Exclusions, "!"+opts.RootFS))
+	// Get the image
+	img, err := save(opts)
 	if err != nil {
 		return err
 	}
-	opts.Exclusions = newExclusions
 
-	img, err := load(opts)
+	// Create the image workspace
+	dir, err := image.MkImageDir(opts.Workdir, opts.Image)
 	if err != nil {
+		return err
+	}
+
+	tmpFS := filepath.Join(dir, "fs.tar")
+	defer os.Remove(tmpFS)
+	if err := img.Export(tmpFS); err != nil {
+		return err
+	}
+
+	if opts.Cleanup {
+		if err := cleanup(opts); err != nil {
+			return err
+		}
+	}
+
+	// Configure ignored paths
+	ignoreConf := paths.Ignore(opts.IgnorePaths).ExclFromList(opts.RootFS)
+	ignores, err := ignoreConf.AddPaths(opts.Workdir).List()
+	if err != nil {
+		return err
+	}
+
+	if err := archiver.Untar(tmpFS, opts.RootFS, ignores); err != nil {
 		return err
 	}
 
@@ -33,8 +57,11 @@ func proot(opts *CommandOptions) error {
 	}
 	cfg := imgConf.Config
 
-	bin := filepath.Join(util.GetExecDir(), "proot")
-	cmd := exec.Command(bin)
+	bin := filepath.Join(paths.GetExecDir(), "proot")
+	cmd := exec.Command(bin, "--kill-on-exit")
+
+	// add extra flags
+	cmd.Args = append(cmd.Args, opts.ProotFlags...)
 
 	// add rootfs
 	cmd.Args = append(cmd.Args, fmt.Sprintf("--rootfs=%s", opts.RootFS))
@@ -44,13 +71,21 @@ func proot(opts *CommandOptions) error {
 	if err != nil {
 		return fmt.Errorf("error compiling regex: %v", err)
 	}
+	if opts.ProotUser != "" {
+		cfg.User = opts.ProotUser
+	}
 	if expr.MatchString(cfg.User) {
+		logrus.Debugf("User %s is numeric", cfg.User)
 		cmd.Args = append(cmd.Args, fmt.Sprintf("--change-id=%s", cfg.User))
 	} else {
+		logrus.Debugf("User %s is not numeric", cfg.User)
 		cmd.Args = append(cmd.Args, "-0")
 	}
 
 	// add workdir
+	if opts.ProotCwd != "" {
+		cfg.WorkingDir = opts.ProotCwd
+	}
 	if cfg.WorkingDir != "" {
 		cmd.Args = append(cmd.Args, fmt.Sprintf("--cwd=%s", cfg.WorkingDir))
 	} else {
@@ -58,18 +93,18 @@ func proot(opts *CommandOptions) error {
 	}
 
 	// add mounts
-	for _, e := range opts.Exclusions {
+	for _, e := range ignores {
 		f := fmt.Sprintf("--bind=%s", e)
 		cmd.Args = append(cmd.Args, f)
 	}
 
 	// add volumes
 	for v := range cfg.Volumes {
-		dir := filepath.Join(opts.Workdir, imgSlug, v)
-		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		tmpDir := filepath.Join(dir, "vol_"+util.Slugify(v))
+		if err := os.MkdirAll(tmpDir, os.ModePerm); err != nil {
 			return fmt.Errorf("error creating directory %s: %v", dir, err)
 		}
-		f := fmt.Sprintf("--bind=%s", dir+":"+v)
+		f := fmt.Sprintf("--bind=%s", tmpDir+":"+v)
 		cmd.Args = append(cmd.Args, f)
 	}
 
@@ -79,9 +114,9 @@ func proot(opts *CommandOptions) error {
 	}
 
 	// add entrypoint
-	if opts.Entrypoint != "" {
-		logrus.Debugln("Entrypoint:", opts.Entrypoint)
-		cfg.Entrypoint = []string{opts.Entrypoint}
+	if opts.ProotEntrypoint != "" {
+		logrus.Debugln("Entrypoint:", opts.ProotEntrypoint)
+		cfg.Entrypoint = []string{opts.ProotEntrypoint}
 	}
 	if cfg.Entrypoint != nil {
 		cmd.Args = append(cmd.Args, cfg.Entrypoint...)

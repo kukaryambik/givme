@@ -1,27 +1,21 @@
-package listpaths
+package paths
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
 
-	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
 )
 
-// List recursively lists files and directories, excluding specified paths.
-func List(rootpath, path string, exclude []string, lst *[]string) error {
-	absRoot, err := filepath.Abs(rootpath)
-	if err != nil {
-		return fmt.Errorf("failed to get absolute path for %s: %w", rootpath, err)
-	}
-
+// GetList recursively lists files and directories, excluding specified paths.
+func GetList(path string, ignore []string, lst *[]string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path for %s: %w", path, err)
 	}
 
-	absExclude, err := util.AbsAll(exclude)
+	absExclude, err := AbsAll(ignore)
 	if err != nil {
 		return err
 	}
@@ -37,14 +31,14 @@ func List(rootpath, path string, exclude []string, lst *[]string) error {
 		return fmt.Errorf("error getting file info for path %s: %v", absPath, err)
 	}
 
-	// Check if the path should be excluded using util.IsPathFrom
-	if util.IsPathFrom(absPath, absExclude) {
-		logrus.Debugf("Path %s is excluded by IsPathFrom", absPath)
+	// Check if the path should be ignored using util.IsPathFrom
+	if IsPathFrom(absPath, absExclude) {
+		logrus.Debugf("Path %s is ignored by IsPathFrom", absPath)
 		return nil
 	}
 
-	// Check if the path contain some excludes in it
-	if fi.IsDir() && util.IsPathContains(absRoot, absPath, absExclude) {
+	// Check if the path contain some ignores in it
+	if fi.IsDir() && IsPathContains(absPath, absExclude) {
 		logrus.Tracef("Path %s is a directory", absPath)
 
 		// Read the contents of the directory
@@ -58,8 +52,8 @@ func List(rootpath, path string, exclude []string, lst *[]string) error {
 		for _, entry := range entries {
 			logrus.Tracef("Recursively processing entry %s in directory %s",
 				entry.Name(), absPath)
-			if err := List(
-				absRoot, filepath.Join(absPath, entry.Name()),
+			if err := GetList(
+				filepath.Join(absPath, entry.Name()),
 				absExclude, lst,
 			); err != nil {
 				return err

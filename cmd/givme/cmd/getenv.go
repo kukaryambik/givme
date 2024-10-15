@@ -28,8 +28,6 @@ func getenv(opts *CommandOptions) error {
 		return fmt.Errorf("error getting config from image %s: %v", img, err)
 	}
 
-	logrus.Infoln(img.Name)
-
 	env := cfg.Config.Env
 
 	if err := envars.SaveToFile(env, opts.DotenvFile); err != nil {

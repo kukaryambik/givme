@@ -8,7 +8,7 @@ import (
 
 	"github.com/kukaryambik/givme/pkg/archiver"
 	"github.com/kukaryambik/givme/pkg/image"
-	"github.com/kukaryambik/givme/pkg/util"
+	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/sirupsen/logrus"
 )
 
@@ -19,10 +19,29 @@ func load(opts *CommandOptions) (*image.Image, error) {
 		return nil, err
 	}
 
-	tmpFS := filepath.Join(opts.Workdir, ".fs_"+util.Slugify(opts.Image)+".tar")
+	dir, err := image.MkImageDir(opts.Workdir, opts.Image)
+	if err != nil {
+		return nil, err
+	}
+	tmpFS := filepath.Join(opts.Workdir, dir, "fs.tar")
 	defer os.Remove(tmpFS)
 
 	if err := img.Export(tmpFS); err != nil {
+		return nil, err
+	}
+
+	if err := cleanup(opts); err != nil {
+		return nil, err
+	}
+
+	// Configure ignored paths
+	ignoreConf := paths.Ignore(opts.IgnorePaths).ExclFromList(opts.RootFS)
+	ignores, err := ignoreConf.AddPaths(opts.Workdir).List()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := archiver.Untar(tmpFS, opts.RootFS, ignores); err != nil {
 		return nil, err
 	}
 
@@ -30,14 +49,6 @@ func load(opts *CommandOptions) (*image.Image, error) {
 	cfg, err := img.Config()
 	if err != nil {
 		return nil, fmt.Errorf("error getting config from image %s: %v", img, err)
-	}
-
-	if err := cleanup(opts); err != nil {
-		return nil, err
-	}
-
-	if err := archiver.Untar(tmpFS, opts.RootFS, opts.Exclusions); err != nil {
-		return nil, err
 	}
 
 	env := cfg.Config.Env

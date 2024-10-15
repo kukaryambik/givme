@@ -19,55 +19,7 @@ RUN set -eux \
 
 RUN cp /busybox-${BUSYBOX_VERSION}/busybox /busybox-bin
 
-# Stage 2: Get certificates
-FROM alpine:3.20 AS prepare-certs
-
-RUN apk add --no-cache ca-certificates
-
-# Stage 3: Build Givme
-FROM golang:1.23-alpine3.20 AS prepare-givme
-
-WORKDIR /src/app
-
-COPY go.* /src/app/
-RUN go mod download
-
-COPY . /src/app
-RUN CGO_ENABLED=0 GOOS=linux go build -o givme ./cmd/givme
-
-# Final stage: Build the scratch-based image
-FROM scratch AS main
-
-ENV PATH="/bin:/givme:/givme/busybox" \
-    HOME="/givme" \
-    USER="root" \
-    SSL_CERT_DIR="/givme/certs"
-
-ENV GIVME_PATH="$PATH"
-
-WORKDIR /givme
-
-# Copy BusyBox
-COPY --from=prepare-busybox /busybox-bin /givme/busybox/busybox
-
-SHELL [ "/givme/busybox/busybox", "sh", "-c" ]
-
-# Busybox install
-RUN set -eux \
-  && /givme/busybox/busybox --install /givme/busybox/ \
-  && mkdir /bin \
-  && ln /givme/busybox/sh /bin/sh
-
-# Copy Certs
-COPY --from=prepare-certs /etc/ssl/certs/ca-certificates.crt $SSL_CERT_DIR/ca-certificates.crt
-
-# Copy Givme
-COPY --from=prepare-givme /src/app/givme /givme/givme
-
-VOLUME [ "/givme" ]
-
-ENTRYPOINT ["sh"]
-
+# Stage 2: Build PRoot
 FROM alpine:3.20 AS prepare-proot
 
 RUN apk add --no-cache \
@@ -104,9 +56,56 @@ RUN set -eux \
   && cp src/proot /proot/bin/proot \
   && chmod +x /proot/bin/proot
 
-FROM main AS with-proot
+# Stage 3: Get certificates
+FROM alpine:3.20 AS prepare-certs
 
+RUN apk add --no-cache ca-certificates
+
+# Stage 4: Build Givme
+FROM golang:1.23-alpine3.20 AS prepare-givme
+
+WORKDIR /src/app
+
+COPY go.* /src/app/
+RUN go mod download
+
+COPY . /src/app
+RUN CGO_ENABLED=0 GOOS=linux go build -o givme ./cmd/givme
+
+# Final stage: Build the scratch-based image
+FROM scratch AS main
+
+ENV PATH="/bin:/givme:/givme/busybox" \
+    HOME="/givme" \
+    USER="root" \
+    SSL_CERT_DIR="/givme/certs"
+
+ENV GIVME_PATH="$PATH"
+
+WORKDIR /givme
+
+# Copy BusyBox
+COPY --from=prepare-busybox /busybox-bin /givme/busybox/busybox
+
+SHELL [ "/givme/busybox/busybox", "sh", "-c" ]
+
+# Busybox install
+RUN set -eux \
+  && /givme/busybox/busybox --install /givme/busybox/ \
+  && mkdir /bin \
+  && ln /givme/busybox/sh /bin/sh
+
+# Copy Proot
 COPY --from=prepare-proot /proot/bin/proot /givme/proot
 COPY --from=prepare-proot /proot/lib /lib
-
 RUN mkdir /tmp && chmod 777 /tmp
+
+# Copy Certs
+COPY --from=prepare-certs /etc/ssl/certs/ca-certificates.crt $SSL_CERT_DIR/ca-certificates.crt
+
+# Copy Givme
+COPY --from=prepare-givme /src/app/givme /givme/givme
+
+VOLUME [ "/givme" ]
+
+ENTRYPOINT ["sh"]

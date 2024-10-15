@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kukaryambik/givme/pkg/util"
+	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/sirupsen/logrus"
 )
 
@@ -24,7 +24,7 @@ func Untar(src, dst string, excl []string) error {
 		return fmt.Errorf("error getting absolute path for %s: %v", dst, err)
 	}
 
-	absExcl, err := util.AbsAll(excl)
+	absExcl, err := paths.AbsAll(excl)
 	if err != nil {
 		return fmt.Errorf("failed to convert exclusion list to absolute paths: %v", err)
 	}
@@ -50,7 +50,7 @@ func Untar(src, dst string, excl []string) error {
 
 // restorePerm restores the permissions of a file or directory
 func restorePerm(path string, info *tar.Header) {
-	if !util.IsFileExists(path) {
+	if !paths.IsFileExists(path) {
 		return
 	}
 
@@ -97,7 +97,7 @@ func processDirs(src, dst string, excl []string) error {
 			targetPath := filepath.Join(dst, hdr.Name)
 
 			// Check if the path should be excluded
-			if util.IsPathFrom(targetPath, excl) {
+			if paths.IsPathFrom(targetPath, excl) {
 				logrus.Tracef("Skipping excluded path: %s", hdr.Name)
 				continue
 			}
@@ -147,7 +147,7 @@ func processFiles(src, dst string, excl []string) error {
 		targetPath := filepath.Join(dst, hdr.Name)
 
 		// Check if the path should be excluded
-		if util.IsPathFrom(targetPath, excl) {
+		if paths.IsPathFrom(targetPath, excl) {
 			logrus.Tracef("Skipping excluded path: %s", hdr.Name)
 			// Skip the file data
 			if _, err := io.Copy(io.Discard, tarReader); err != nil {
@@ -208,7 +208,7 @@ func processLinks(src, dst string, excl []string) error {
 		targetPath := filepath.Join(dst, hdr.Name)
 
 		// Check if the path should be excluded
-		if util.IsPathFrom(targetPath, excl) {
+		if paths.IsPathFrom(targetPath, excl) {
 			logrus.Tracef("Skipping excluded path: %s", hdr.Name)
 			continue
 		}

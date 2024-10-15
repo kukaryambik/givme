@@ -73,10 +73,9 @@ COPY go.* /src/app/
 RUN go mod download
 
 COPY . /src/app
-RUN CGO_ENABLED=0 GOOS=linux go build -o givme ./cmd/givme \
-  -ldflags "-X main.Version=${GIVME_VERSION}" \
-  -ldflags "-X main.Commit=${GIVME_COMMIT:-$(git rev-parse --short HEAD)}" \
-  -ldflags "-X main.BuildDate=$(date +%Y-%m-%d)"
+RUN CGO_ENABLED=0 GOOS=linux go build \
+  -ldflags "-X main.Version=${GIVME_VERSION} -X main.Commit=${GIVME_COMMIT} -X main.BuildDate=$(date +%Y-%m-%d)" \
+  -o givme ./cmd/givme
 
 # Final stage: Build the scratch-based image
 FROM scratch AS main

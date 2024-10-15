@@ -295,7 +295,7 @@ var loadCmd = &cobra.Command{
 var runCmd = &cobra.Command{
 	Use:     "run [flags] IMAGE [cmd]...",
 	Aliases: []string{"r", "proot"},
-	Short:   "Run a command in a container",
+	Short:   "Run a command in the container",
 	Args:    cobra.MinimumNArgs(1), // Ensure exactly 1 argument is provided
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]

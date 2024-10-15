@@ -136,6 +136,8 @@ Flags:
 #### Load
 
 ```txt
+Extract the container filesystem to the rootfs directory
+
 Usage:
   givme load [flags] IMAGE
 
@@ -154,6 +156,8 @@ Flags:
 #### Restore
 
 ```txt
+Restore from a snapshot archive
+
 Usage:
   givme restore [flags] FILE
 
@@ -169,6 +173,8 @@ Flags:
 #### Run
 
 ```txt
+Run a command in the container
+
 Usage:
   givme run [flags] IMAGE [cmd]...
 
@@ -191,7 +197,9 @@ Flags:
 #### Save
 
 ```txt
-sage:
+Save image to tar archive
+
+Usage:
   givme save [flags] IMAGE
 
 Aliases:

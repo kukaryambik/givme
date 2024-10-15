@@ -66,11 +66,17 @@ FROM golang:1.23-alpine3.20 AS prepare-givme
 
 WORKDIR /src/app
 
+ARG GIVME_VERSION
+ARG GIVME_COMMIT
+
 COPY go.* /src/app/
 RUN go mod download
 
 COPY . /src/app
-RUN CGO_ENABLED=0 GOOS=linux go build -o givme ./cmd/givme
+RUN CGO_ENABLED=0 GOOS=linux go build -o givme ./cmd/givme \
+  -ldflags "-X main.Version=${GIVME_VERSION}" \
+  -ldflags "-X main.Commit=${GIVME_COMMIT:-$(git rev-parse --short HEAD)}" \
+  -ldflags "-X main.BuildDate=$(date +%Y-%m-%d)"
 
 # Final stage: Build the scratch-based image
 FROM scratch AS main

@@ -1,5 +1,8 @@
 # Givme
 
+![Build Status](https://img.shields.io/github/actions/workflow/status/kukaryambik/givme/docker-publish.yml)
+![License](https://img.shields.io/github/license/kukaryambik/givme)
+
 _«Givme, givme more, givme more, givme, givme more!»_
 
 ## The main idea
@@ -69,8 +72,8 @@ curl --version
   getenv      Get container image environment variables
   help        Help about any command
   load        Extract the container filesystem to the rootfs directory
-  proot       Run a command in a container using proot
   restore     Restore from a snapshot archive
+  run         Run a command in a container
   save        Save image to tar archive
   snapshot    Create a snapshot archive
   version     Display version information

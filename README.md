@@ -21,9 +21,17 @@ Switch the image from inside the container.
 ```sh
 docker run --rm -it ghcr.io/kukaryambik/givme:latest
 
-eval $(/givme/givme -E load curlimages/curl)
+givme run curlimages/curl
 
 curl --version
+```
+
+```sh
+docker run --rm -it ghcr.io/kukaryambik/givme:latest
+
+eval $(/givme/givme -E load alpine/helm)
+
+helm version
 
 eval $(/givme/givme -E load docker)
 

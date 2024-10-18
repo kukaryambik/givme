@@ -2,12 +2,24 @@ package util
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
 )
+
+func Coalesce[T any](vals ...T) T {
+	var zero T
+	for _, v := range vals {
+		r := reflect.ValueOf(v)
+		if !r.IsZero() {
+			return v
+		}
+	}
+	return zero
+}
 
 // UniqString creates an array of string with unique values.
 func UniqString(a []string) []string {

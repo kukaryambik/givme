@@ -3,13 +3,13 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
+	"slices"
 
 	"github.com/kukaryambik/givme/pkg/archiver"
 	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/kukaryambik/givme/pkg/paths"
+	"github.com/kukaryambik/givme/pkg/proot"
 	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
 )
@@ -48,90 +48,38 @@ func run(opts *CommandOptions) error {
 	cfg := imgConf.Config
 
 	// Create the proot command
-	bin := filepath.Join(paths.GetExecDir(), "proot")
-	cmd := exec.Command(bin, "--kill-on-exit")
-
-	// add extra flags
-	cmd.Args = append(cmd.Args, opts.ProotFlags...)
-
-	// add rootfs
-	cmd.Args = append(cmd.Args, fmt.Sprintf("--rootfs=%s", opts.RootFS))
-
-	// add user
-	expr, err := regexp.Compile("^[0-9]+(:[0-9]+)?$")
-	if err != nil {
-		return fmt.Errorf("error compiling regex: %v", err)
-	}
-	if opts.ProotUser != "" {
-		cfg.User = opts.ProotUser
-	}
-	if expr.MatchString(cfg.User) {
-		logrus.Debugf("User %s is numeric", cfg.User)
-		cmd.Args = append(cmd.Args, fmt.Sprintf("--change-id=%s", cfg.User))
-	} else {
-		logrus.Debugf("User %s is not numeric", cfg.User)
-		cmd.Args = append(cmd.Args, "-0")
+	prootConf := proot.ProotConf{
+		BinPath:           filepath.Join(paths.GetExecDir(), "proot"),
+		RootFS:            opts.RootFS,
+		ChangeID:          util.Coalesce(opts.ProotUser, cfg.User, "0:0"),
+		Workdir:           util.Coalesce(opts.ProotCwd, cfg.WorkingDir, "/"),
+		ExtraFlags:        opts.ProotFlags,
+		MixedMode:         true,
+		TmpDir:            opts.Workdir,
+		KillOnExit:        true,
+		DontPolluteRootfs: true,
 	}
 
-	// add workdir
-	if opts.ProotCwd != "" {
-		cfg.WorkingDir = opts.ProotCwd
-	}
-	if cfg.WorkingDir != "" {
-		cmd.Args = append(cmd.Args, fmt.Sprintf("--cwd=%s", cfg.WorkingDir))
-	} else {
-		cmd.Args = append(cmd.Args, "--cwd=/")
-	}
-
-	// add mounts
-	for _, e := range ignores {
-		f := fmt.Sprintf("--bind=%s", e)
-		cmd.Args = append(cmd.Args, f)
-	}
-
-	for _, m := range opts.ProotMounts {
-		f := fmt.Sprintf("--bind=%s", m)
-		cmd.Args = append(cmd.Args, f)
-	}
-
-	// add volumes
+	// add volumes & mounts
+	prootConf.Mounts = slices.Concat(opts.ProotMounts, ignores)
 	for v := range cfg.Volumes {
 		tmpDir := filepath.Join(dir, "vol_"+util.Slugify(v))
 		if err := os.MkdirAll(tmpDir, os.ModePerm); err != nil {
 			return fmt.Errorf("error creating directory %s: %v", dir, err)
 		}
-		f := fmt.Sprintf("--bind=%s", tmpDir+":"+v)
-		cmd.Args = append(cmd.Args, f)
+		f := tmpDir + ":" + v
+		prootConf.Mounts = append(prootConf.Mounts, f)
 	}
 
-	// add shell
-	if cfg.Shell != nil {
-		cmd.Args = append(cmd.Args, cfg.Shell...)
-	}
+	// add command
+	prootConf.Command = slices.Concat(
+		cfg.Shell,
+		util.Coalesce([]string{opts.ProotEntrypoint}, cfg.Entrypoint),
+		util.Coalesce(opts.Cmd, cfg.Cmd),
+	)
 
-	// add entrypoint
-	if opts.ProotEntrypoint != "" {
-		logrus.Debugln("Entrypoint:", opts.ProotEntrypoint)
-		cfg.Entrypoint = []string{opts.ProotEntrypoint}
-	}
-	if cfg.Entrypoint != nil {
-		cmd.Args = append(cmd.Args, cfg.Entrypoint...)
-	}
-
-	// add cmd
-	if opts.Cmd != nil {
-		logrus.Debugln("Cmd:", opts.Cmd)
-		cfg.Cmd = opts.Cmd
-	}
-	if cfg.Cmd != nil {
-		cmd.Args = append(cmd.Args, cfg.Cmd...)
-	}
-
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	cmd.Env = cfg.Env
+	// Create the proot command and run it
+	cmd := prootConf.Cmd()
 	logrus.Debugln(cmd.Args)
 
 	// Export the image filesystem to the tar file
@@ -152,6 +100,10 @@ func run(opts *CommandOptions) error {
 	if err := archiver.Untar(tmpFS, opts.RootFS, ignores); err != nil {
 		return err
 	}
+
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	cmd.Stdin = os.Stdin
 
 	// Run the command
 	if err := cmd.Run(); err != nil {

@@ -103,13 +103,15 @@ RUN set -eux \
 # Copy Proot
 COPY --from=prepare-proot /proot/bin/proot /givme/proot
 COPY --from=prepare-proot /proot/lib /lib
-RUN mkdir /tmp && chmod 777 /tmp
 
 # Copy Certs
 COPY --from=prepare-certs /etc/ssl/certs/ca-certificates.crt $SSL_CERT_DIR/ca-certificates.crt
 
 # Copy Givme
 COPY --from=prepare-givme /src/app/givme /givme/givme
+
+# Create tmp directories
+RUN mkdir -p /tmp /givme/tmp && chmod 777 /givme/tmp /tmp
 
 VOLUME [ "/givme" ]
 

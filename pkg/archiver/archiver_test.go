@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	// Replace with the correct import path of your archiver package
 	"github.com/kukaryambik/givme/pkg/archiver"
 	"github.com/stretchr/testify/assert"
 )

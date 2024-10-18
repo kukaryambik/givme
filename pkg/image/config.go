@@ -9,6 +9,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Function variables for dependency injection
+var (
+	osStatFunc     = os.Stat
+	osReadFileFunc = os.ReadFile
+	osOpenFileFunc = os.OpenFile
+)
+
 // Config pulls an image and returns its config
 func (img *Image) Config(file ...string) (v1.ConfigFile, error) {
 	logrus.Debugf("Fetching environment variables for image: %s", img.Name)
@@ -17,11 +24,11 @@ func (img *Image) Config(file ...string) (v1.ConfigFile, error) {
 
 	if len(file) > 0 {
 		// Check if file already exists.
-		if _, err := os.Stat(file[0]); err == nil {
+		if _, err := osStatFunc(file[0]); err == nil {
 			logrus.Infof("Config for %s already downloaded. Reading from %s", img.Name, file)
 
 			// Read the file
-			jsonData, err := os.ReadFile(file[0])
+			jsonData, err := osReadFileFunc(file[0])
 			if err != nil {
 				logrus.Warnf("Error reading file %s: %v", file, err)
 			} else {
@@ -56,7 +63,7 @@ func (img *Image) Config(file ...string) (v1.ConfigFile, error) {
 		}
 
 		// Create the output json file
-		fi, err := os.OpenFile(file[0], os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		fi, err := osOpenFileFunc(file[0], os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 		if err != nil {
 			logrus.Errorf("Error creating file %s: %v", file[0], err)
 			return config, fmt.Errorf("error creating file %s: %v", file, err)

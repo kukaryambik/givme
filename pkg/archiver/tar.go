@@ -18,6 +18,148 @@ type fileIdentity struct {
 	ino uint64
 }
 
+// tarArchiver encapsulates the data and methods required for creating a tar archive.
+type tarArchiver struct {
+	absSrc     string
+	absExcl    []string
+	tarWriter  *tar.Writer
+	addedFiles map[fileIdentity]string
+}
+
+// newTarArchiver initializes and returns a new tarArchiver instance.
+func newTarArchiver(absSrc string, absExcl []string, tarWriter *tar.Writer) *tarArchiver {
+	return &tarArchiver{
+		absSrc:     absSrc,
+		absExcl:    absExcl,
+		tarWriter:  tarWriter,
+		addedFiles: make(map[fileIdentity]string),
+	}
+}
+
+// getFileID retrieves the file identity based on its FileInfo.
+func (ta *tarArchiver) getFileID(fi os.FileInfo) (fileIdentity, error) {
+	stat, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fileIdentity{}, fmt.Errorf("unable to get raw syscall.Stat_t data for %s", fi.Name())
+	}
+	return fileIdentity{dev: uint64(stat.Dev), ino: uint64(stat.Ino)}, nil
+}
+
+// writeFileToTar writes a regular file to the tar archive.
+func (ta *tarArchiver) writeFileToTar(file string, hdr *tar.Header) error {
+	if err := ta.tarWriter.WriteHeader(hdr); err != nil {
+		return fmt.Errorf("error writing header for %s: %v", file, err)
+	}
+	f, err := os.Open(file)
+	if err != nil {
+		return fmt.Errorf("error opening file %s: %v", file, err)
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(ta.tarWriter, f); err != nil {
+		return fmt.Errorf("error writing file %s to archive: %v", file, err)
+	}
+	return nil
+}
+
+// handleRegularFile processes regular files, handling hard links if necessary.
+func (ta *tarArchiver) handleRegularFile(file string, fi os.FileInfo, relPath string, hdr *tar.Header) error {
+	id, err := ta.getFileID(fi)
+	if err != nil {
+		logrus.Warnf("Skipping file %s: %v", file, err)
+		return nil
+	}
+
+	stat, ok := fi.Sys().(*syscall.Stat_t)
+	if ok && stat.Nlink > 1 {
+		if original, exists := ta.addedFiles[id]; exists {
+			hdr.Typeflag = tar.TypeLink
+			hdr.Linkname = original
+			if err := ta.tarWriter.WriteHeader(hdr); err != nil {
+				return fmt.Errorf("error writing hard link header for %s: %v", file, err)
+			}
+			logrus.Tracef("Added hard link: %s -> %s", relPath, original)
+			return nil
+		}
+		ta.addedFiles[id] = relPath
+	}
+
+	if err := ta.writeFileToTar(file, hdr); err != nil {
+		return err
+	}
+	logrus.Tracef("Added file: %s", relPath)
+	return nil
+}
+
+// handleSymlink processes symbolic links.
+func (ta *tarArchiver) handleSymlink(file string, hdr *tar.Header) error {
+	linkTarget, err := os.Readlink(file)
+	if err != nil {
+		return fmt.Errorf("error reading symlink %s: %v", file, err)
+	}
+	hdr.Linkname = linkTarget
+	if err := ta.tarWriter.WriteHeader(hdr); err != nil {
+		return fmt.Errorf("error writing header for symlink %s: %v", file, err)
+	}
+	return nil
+}
+
+// walkFunc is the function called by filepath.Walk.
+func (ta *tarArchiver) walkFunc(file string, fi os.FileInfo, err error) error {
+	if err != nil {
+		logrus.Errorf("Error accessing file %s: %v", file, err)
+		return err
+	}
+
+	relPath, err := filepath.Rel(ta.absSrc, file)
+	if err != nil {
+		logrus.Errorf("Error getting relative path for %s: %v", file, err)
+		return err
+	}
+
+	if paths.IsPathFrom(file, ta.absExcl) {
+		logrus.Tracef("Excluding: %s", file)
+		if fi.IsDir() {
+			return filepath.SkipDir
+		}
+		return nil
+	}
+
+	hdr, err := tar.FileInfoHeader(fi, "")
+	if err != nil {
+		logrus.Errorf("Error creating tar header for %s: %v", file, err)
+		return err
+	}
+	hdr.Name = relPath
+
+	switch {
+	case fi.Mode().IsRegular():
+		if err := ta.handleRegularFile(file, fi, relPath, hdr); err != nil {
+			logrus.Errorf("Error handling regular file %s: %v", file, err)
+			return err
+		}
+	case fi.Mode()&os.ModeSymlink != 0:
+		if err := ta.handleSymlink(file, hdr); err != nil {
+			logrus.Errorf("Error handling symlink %s: %v", file, err)
+			return err
+		}
+	case fi.Mode()&os.ModeNamedPipe != 0:
+		hdr.Typeflag = tar.TypeFifo
+		if err := ta.tarWriter.WriteHeader(hdr); err != nil {
+			logrus.Errorf("Error writing header for FIFO %s: %v", file, err)
+			return err
+		}
+		logrus.Tracef("Added FIFO: %s", relPath)
+	default:
+		if err := ta.tarWriter.WriteHeader(hdr); err != nil {
+			logrus.Errorf("Error writing header for %s: %v", file, err)
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Tar creates a tar archive from the source directory `src` and saves it to `dst`,
 // excluding any paths specified in `excl`.
 func Tar(src, dst string, excl []string) error {
@@ -45,107 +187,14 @@ func Tar(src, dst string, excl []string) error {
 
 	tarWriter := tar.NewWriter(outFile)
 	defer func() {
-		if cerr := tarWriter.Close(); cerr != nil {
-			logrus.Errorf("Error closing tar writer: %v", cerr)
+		if err := tarWriter.Close(); err != nil {
+			logrus.Errorf("Error closing tar writer: %v", err)
 		}
 	}()
 
-	addedFiles := make(map[fileIdentity]string)
+	ta := newTarArchiver(absSrc, absExcl, tarWriter)
 
-	getFileID := func(fi os.FileInfo) (fileIdentity, error) {
-		stat, ok := fi.Sys().(*syscall.Stat_t)
-		if !ok {
-			return fileIdentity{}, fmt.Errorf("unable to get raw syscall.Stat_t data for %s", fi.Name())
-		}
-		return fileIdentity{dev: uint64(stat.Dev), ino: uint64(stat.Ino)}, nil
-	}
-
-	err = filepath.Walk(absSrc, func(file string, fi os.FileInfo, err error) error {
-		if err != nil {
-			logrus.Errorf("Error accessing file %s: %v", file, err)
-			return err
-		}
-
-		relPath, err := filepath.Rel(absSrc, file)
-		if err != nil {
-			logrus.Errorf("Error getting relative path for %s: %v", file, err)
-			return err
-		}
-
-		if paths.IsPathFrom(file, absExcl) {
-			logrus.Tracef("Excluding: %s", file)
-			if fi.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		hdr, err := tar.FileInfoHeader(fi, "")
-		if err != nil {
-			logrus.Errorf("Error creating tar header for %s: %v", file, err)
-			return err
-		}
-		hdr.Name = relPath
-
-		if fi.Mode().IsRegular() {
-			id, err := getFileID(fi)
-			if err != nil {
-				logrus.Warnf("Skipping file %s: %v", file, err)
-				return nil
-			}
-
-			if fi.Sys() != nil {
-				stat, _ := fi.Sys().(*syscall.Stat_t)
-				if stat.Nlink > 1 {
-					if original, exists := addedFiles[id]; exists {
-						hdr.Typeflag = tar.TypeLink
-						hdr.Linkname = original
-						if err := tarWriter.WriteHeader(hdr); err != nil {
-							logrus.Errorf("Error writing hard link header for %s: %v", file, err)
-							return err
-						}
-						logrus.Tracef("Added hard link: %s -> %s", relPath, original)
-						return nil
-					}
-					addedFiles[id] = relPath
-				}
-			}
-		}
-
-		if fi.Mode()&os.ModeSymlink != 0 {
-			linkTarget, err := os.Readlink(file)
-			if err != nil {
-				logrus.Errorf("Error reading symlink %s: %v", file, err)
-				return err
-			}
-			hdr.Linkname = linkTarget
-		}
-
-		if err := tarWriter.WriteHeader(hdr); err != nil {
-			logrus.Errorf("Error writing header for %s: %v", file, err)
-			return err
-		}
-
-		if fi.Mode().IsRegular() {
-			f, err := os.Open(file)
-			if err != nil {
-				logrus.Errorf("Error opening file %s: %v", file, err)
-				return err
-			}
-			defer f.Close()
-
-			if _, err := io.Copy(tarWriter, f); err != nil {
-				logrus.Errorf("Error writing file %s to archive: %v", file, err)
-				return err
-			}
-			logrus.Tracef("Added file: %s", relPath)
-		}
-
-		// Optionally, handle permissions, ownership, and timestamps here if needed.
-
-		return nil
-	})
-
+	err = filepath.Walk(absSrc, ta.walkFunc)
 	if err != nil {
 		logrus.Errorf("Error walking source directory %s: %v", absSrc, err)
 		return err

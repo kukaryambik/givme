@@ -46,7 +46,9 @@ func MkImageDir(dir, image string) (string, error) {
 }
 
 // GetNamesFromTarball is a helper function to get the image names from a tarball
-func GetNamesFromTarball(path string) ([]string, error) {
+var GetNamesFromTarball = getNamesFromTarball
+
+func getNamesFromTarball(path string) ([]string, error) {
 	opener := func() (io.ReadCloser, error) {
 		return os.Open(path)
 	}
@@ -75,7 +77,8 @@ func isUnauthorizedError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(err.Error(), "401 Unauthorized") || strings.Contains(err.Error(), "DENIED")
+	lowerErr := strings.ToLower(err.Error())
+	return strings.Contains(lowerErr, "unauthorized") || strings.Contains(lowerErr, "authentication required")
 }
 
 // withMirror updates docker registry of the image to the mirror

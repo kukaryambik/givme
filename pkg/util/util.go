@@ -44,7 +44,7 @@ func UniqString(a []string) []string {
 }
 
 // Retry attempts to execute a function multiple times with delay between attempts
-func Retry(retries int, sleep time.Duration, fn func() error) error {
+var Retry = func(retries int, sleep time.Duration, fn func() error) error {
 	var err error
 	for i := 0; i <= retries; i++ {
 		if err = fn(); err == nil {

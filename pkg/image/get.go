@@ -22,9 +22,16 @@ type GetConf struct {
 	Retry            int
 }
 
+var (
+	craneLoadFunc = crane.Load
+	cranePullFunc = crane.Pull
+)
+
 // Load loads the image from a tarball.
-func Load(path string) (*Image, error) {
-	img, err := crane.Load(path)
+var Load = load
+
+func load(path string) (*Image, error) {
+	img, err := craneLoadFunc(path)
 	if err != nil {
 		return nil, fmt.Errorf("error loading image from tar file %s: %v", path, err)
 	}
@@ -39,7 +46,9 @@ func Load(path string) (*Image, error) {
 }
 
 // Pull pulls the image using both provided credentials and the default keychain.
-func Pull(auth *authn.Basic, image, mirror string) (*Image, error) {
+var Pull = pull
+
+func pull(auth *authn.Basic, image, mirror string) (*Image, error) {
 	logrus.Debugf("Pulling image: %s", image)
 
 	// Set the default platform
@@ -49,7 +58,7 @@ func Pull(auth *authn.Basic, image, mirror string) (*Image, error) {
 	}
 
 	// Trying to pull the image with anonymous access
-	img, err := crane.Pull(
+	img, err := cranePullFunc(
 		withMirror(image, mirror),
 		crane.WithAuth(authn.Anonymous),
 		crane.WithPlatform(&platform),
@@ -72,7 +81,7 @@ func Pull(auth *authn.Basic, image, mirror string) (*Image, error) {
 			Username: auth.Username,
 			Password: auth.Password,
 		})
-		img, err = crane.Pull(
+		img, err = cranePullFunc(
 			withMirror(image, mirror),
 			crane.WithAuth(basicAuth),
 			crane.WithPlatform(&platform),

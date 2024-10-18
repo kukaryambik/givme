@@ -12,7 +12,7 @@ import (
 )
 
 // Rmrf removes all files and directories in the provided paths.
-func Rmrf(paths ...string) error {
+var Rmrf = func(paths ...string) error {
 	for _, path := range paths {
 		err := os.RemoveAll(path)
 		if err != nil && !os.IsNotExist(err) {
@@ -23,7 +23,7 @@ func Rmrf(paths ...string) error {
 }
 
 // GetExecDir returns the directory of the current executable.
-func GetExecDir() string {
+var GetExecDir = func() string {
 	exe, err := os.Executable()
 	if err != nil {
 		exe = "."
@@ -71,7 +71,7 @@ func AbsAll(paths []string) ([]string, error) {
 }
 
 // IsPathFrom checks if a path originates from any of the listed paths.
-func IsPathFrom(path string, list []string) bool {
+var IsPathFrom = func(path string, list []string) bool {
 	for _, base := range list {
 		if path == base || strings.HasPrefix(path, base+string(os.PathSeparator)) {
 			return true
@@ -81,7 +81,7 @@ func IsPathFrom(path string, list []string) bool {
 }
 
 // IsPathContains checks if a path contains any of the listed paths.
-func IsPathContains(path string, list []string) bool {
+var IsPathContains = func(path string, list []string) bool {
 	for _, c := range list {
 		p := strings.TrimRight(path, string(os.PathSeparator)) + string(os.PathSeparator)
 		if path == c || strings.HasPrefix(c, p) {
@@ -107,7 +107,7 @@ func IsDirEmpty(dir string) (bool, error) {
 }
 
 // IsFileExists checks if the specified file exists.
-func IsFileExists(path string) bool {
+var IsFileExists = func(path string) bool {
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
 		return false

@@ -6,47 +6,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/sirupsen/logrus"
 )
 
 var Chown bool = os.Getuid() == 0
-
-func Untar(src, dst string, excl []string) error {
-	absSrc, err := filepath.Abs(src)
-	if err != nil {
-		return fmt.Errorf("error getting absolute path for %s: %v", src, err)
-	}
-
-	absDst, err := filepath.Abs(dst)
-	if err != nil {
-		return fmt.Errorf("error getting absolute path for %s: %v", dst, err)
-	}
-
-	absExcl, err := paths.AbsAll(excl)
-	if err != nil {
-		return fmt.Errorf("failed to convert exclusion list to absolute paths: %v", err)
-	}
-
-	// First, process directories
-	if err := processDirs(absSrc, absDst, absExcl); err != nil {
-		return err
-	}
-
-	// Then, process files
-	if err := processFiles(absSrc, absDst, absExcl); err != nil {
-		return err
-	}
-
-	// Finally, process links
-	if err := processLinks(absSrc, absDst, absExcl); err != nil {
-		return err
-	}
-
-	logrus.Debugf("Archive successfully unpacked: %s", src)
-	return nil
-}
 
 // restorePerm restores the permissions of a file or directory
 func restorePerm(path string, info *tar.Header) {
@@ -69,6 +35,43 @@ func restorePerm(path string, info *tar.Header) {
 	}
 }
 
+// Untar extracts a tar archive from `src` to `dst`, excluding any paths specified in `excl`.
+func Untar(src, dst string, excl []string) error {
+	absSrc, err := filepath.Abs(src)
+	if err != nil {
+		return fmt.Errorf("error getting absolute path for %s: %v", src, err)
+	}
+
+	absDst, err := filepath.Abs(dst)
+	if err != nil {
+		return fmt.Errorf("error getting absolute path for %s: %v", dst, err)
+	}
+
+	absExcl, err := paths.AbsAll(excl)
+	if err != nil {
+		return fmt.Errorf("failed to convert exclusion list to absolute paths: %v", err)
+	}
+
+	// First, process directories
+	if err := processDirs(absSrc, absDst, absExcl); err != nil {
+		return err
+	}
+
+	// Then, process files and special files
+	if err := processFiles(absSrc, absDst, absExcl); err != nil {
+		return err
+	}
+
+	// Finally, process links
+	if err := processLinks(absSrc, absDst, absExcl); err != nil {
+		return err
+	}
+
+	logrus.Debugf("Archive successfully unpacked: %s", src)
+	return nil
+}
+
+// processDirs processes directories from the archive.
 func processDirs(src, dst string, excl []string) error {
 	// Open the source archive for reading
 	input, err := os.Open(src)
@@ -93,7 +96,6 @@ func processDirs(src, dst string, excl []string) error {
 		}
 
 		if hdr.Typeflag == tar.TypeDir {
-
 			targetPath := filepath.Join(dst, hdr.Name)
 
 			// Check if the path should be excluded
@@ -116,6 +118,7 @@ func processDirs(src, dst string, excl []string) error {
 	return nil
 }
 
+// processFiles processes regular files and special files like FIFOs.
 func processFiles(src, dst string, excl []string) error {
 	// Open the source archive for reading
 	input, err := os.Open(src)
@@ -139,44 +142,53 @@ func processFiles(src, dst string, excl []string) error {
 			return err
 		}
 
-		if hdr.Typeflag != tar.TypeReg {
-			// Skip non-regular files
-			continue
-		}
-
 		targetPath := filepath.Join(dst, hdr.Name)
 
 		// Check if the path should be excluded
 		if paths.IsPathFrom(targetPath, excl) {
 			logrus.Tracef("Skipping excluded path: %s", hdr.Name)
-			// Skip the file data
-			if _, err := io.Copy(io.Discard, tarReader); err != nil {
-				return fmt.Errorf("error skipping file %s: %v", targetPath, err)
+			// Skip the file data if it's a regular file
+			if hdr.Typeflag == tar.TypeReg {
+				if _, err := io.Copy(io.Discard, tarReader); err != nil {
+					return fmt.Errorf("error skipping file %s: %v", targetPath, err)
+				}
 			}
 			continue
 		}
 
-		// Create the file
-		outFile, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, hdr.FileInfo().Mode())
-		if err != nil {
-			return fmt.Errorf("error creating file %s: %v", targetPath, err)
-		}
+		switch hdr.Typeflag {
+		case tar.TypeReg:
+			// Handle regular files
+			outFile, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, hdr.FileInfo().Mode())
+			if err != nil {
+				return fmt.Errorf("error creating file %s: %v", targetPath, err)
+			}
 
-		// Copy the file data
-		if _, err := io.Copy(outFile, tarReader); err != nil {
+			// Copy the file data
+			if _, err := io.Copy(outFile, tarReader); err != nil {
+				outFile.Close()
+				return fmt.Errorf("error writing file %s: %v", targetPath, err)
+			}
 			outFile.Close()
-			return fmt.Errorf("error writing file %s: %v", targetPath, err)
+
+			restorePerm(targetPath, hdr)
+
+			logrus.Tracef("Extracted file: %s", targetPath)
+		case tar.TypeFifo:
+			// Handle FIFOs
+			if err := processSpecialFiles(hdr, targetPath); err != nil {
+				return err
+			}
+		default:
+			// Skip other types for now
+			continue
 		}
-		outFile.Close()
-
-		restorePerm(targetPath, hdr)
-
-		logrus.Tracef("Extracted file: %s", targetPath)
 	}
 
 	return nil
 }
 
+// processLinks processes symbolic and hard links from the archive.
 func processLinks(src, dst string, excl []string) error {
 	// Open the source archive for reading
 	input, err := os.Open(src)
@@ -238,5 +250,21 @@ func processLinks(src, dst string, excl []string) error {
 		logrus.Tracef("Created link: %s -> %s", targetPath, hdr.Linkname)
 	}
 
+	return nil
+}
+
+// processSpecialFiles handles special files like FIFOs during extraction.
+func processSpecialFiles(hdr *tar.Header, targetPath string) error {
+	switch hdr.Typeflag {
+	case tar.TypeFifo:
+		err := syscall.Mkfifo(targetPath, uint32(hdr.FileInfo().Mode()))
+		if err != nil {
+			return fmt.Errorf("error creating FIFO %s: %v", targetPath, err)
+		}
+		restorePerm(targetPath, hdr)
+		logrus.Tracef("Created FIFO: %s", targetPath)
+	default:
+		logrus.Warnf("Unsupported special file type: %v", hdr.Typeflag)
+	}
 	return nil
 }

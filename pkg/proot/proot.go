@@ -19,6 +19,7 @@ type ProotConf struct {
 	// Basic configuration
 	BinPath string // Path to proot binary
 	Command []string
+	Env     []string
 
 	// Flags
 	ChangeID      string   `flag:"change-id"`    // Make current user and group appear as *string* "uid:gid".
@@ -57,10 +58,19 @@ func (cfg *ProotConf) Cmd() *exec.Cmd {
 	cmd := exec.Command(util.Coalesce(cfg.BinPath, DefaultBinPath))
 	logrus.Debugf("Creating proot command: %s", cmd.Path)
 
+	cmd.Env = append(cmd.Env, cfg.Env...)
+
 	args := cfg.ExtraFlags
 
 	// Add mixed mode
 	args = append(args, fmt.Sprintf("--mixed-mode %v", cfg.MixedMode))
+
+	// check UID:GID
+	expr, _ := regexp.Compile("^[0-9]+(:[0-9]+)?$")
+	if !expr.MatchString(cfg.ChangeID) {
+		logrus.Warnf("UID:GID %s is not numeric!", cfg.ChangeID)
+		cfg.ChangeID = ""
+	}
 
 	val := reflect.ValueOf(*cfg)
 	t := reflect.TypeOf(*cfg)
@@ -79,23 +89,16 @@ func (cfg *ProotConf) Cmd() *exec.Cmd {
 			switch v.Kind() {
 			case reflect.Bool:
 				args = append(args, "--"+flag)
-				logrus.Debugf("Added flag: --%s", flag)
+				logrus.Tracef("Added flag: --%s", flag)
 			case reflect.Slice:
 				for i := 0; i < v.Len(); i++ {
 					elem := v.Index(i).Interface()
 					args = append(args, fmt.Sprintf("--%s=%v", flag, elem))
-					logrus.Debugf("Added flag: --%s=%v", flag, elem)
+					logrus.Tracef("Added flag: --%s=%v", flag, elem)
 				}
 			default:
-				if flag == "change-id" {
-					expr, _ := regexp.Compile("^[0-9]+(:[0-9]+)?$")
-					if !expr.MatchString(v.String()) {
-						logrus.Warnf("UID:GID %s is not numeric!", v.String())
-						continue
-					}
-				}
 				args = append(args, fmt.Sprintf("--%s=%v", flag, v))
-				logrus.Debugf("Added flag: --%s=%v", flag, v)
+				logrus.Tracef("Added flag: --%s=%v", flag, v)
 			}
 
 		case hasTag(&tag, "env"):

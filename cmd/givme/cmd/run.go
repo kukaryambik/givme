@@ -50,15 +50,15 @@ func run(opts *CommandOptions) error {
 
 	// Create the proot command
 	prootConf := proot.ProotConf{
-		BinPath:           filepath.Join(paths.GetExecDir(), "proot"),
-		RootFS:            opts.RootFS,
-		ChangeID:          util.Coalesce(opts.ProotUser, cfg.User, "0:0"),
-		Workdir:           util.Coalesce(opts.ProotCwd, cfg.WorkingDir, "/"),
-		ExtraFlags:        opts.ProotFlags,
-		MixedMode:         true,
-		TmpDir:            opts.Workdir,
-		KillOnExit:        true,
-		DontPolluteRootfs: true,
+		BinPath:    filepath.Join(paths.GetExecDir(), "proot"),
+		RootFS:     opts.RootFS,
+		ChangeID:   util.Coalesce(opts.ProotUser, cfg.User, "0:0"),
+		Workdir:    util.Coalesce(opts.ProotCwd, cfg.WorkingDir, "/"),
+		Env:        cfg.Env,
+		ExtraFlags: opts.ProotFlags,
+		MixedMode:  true,
+		TmpDir:     opts.Workdir,
+		KillOnExit: true,
 	}
 
 	// add volumes & mounts

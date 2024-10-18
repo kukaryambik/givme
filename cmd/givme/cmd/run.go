@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/kukaryambik/givme/pkg/archiver"
 	"github.com/kukaryambik/givme/pkg/image"
@@ -29,7 +30,7 @@ func run(opts *CommandOptions) error {
 	}
 
 	// Set the rootfs directory
-	if opts.RootFS == "" || opts.RootFS == "/" {
+	if strings.Trim(opts.RootFS, "/") == "" {
 		opts.RootFS = filepath.Join(dir, "rootfs")
 	}
 

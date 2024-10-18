@@ -1,5 +1,6 @@
 # Givme
 
+![Go Report Card](https://goreportcard.com/badge/github.com/kukaryambik/givme)
 ![Build Status](https://img.shields.io/github/actions/workflow/status/kukaryambik/givme/docker-publish.yml)
 ![License](https://img.shields.io/github/license/kukaryambik/givme)
 

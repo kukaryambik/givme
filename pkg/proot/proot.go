@@ -17,9 +17,9 @@ const (
 
 type ProotConf struct {
 	// Basic configuration
-	BinPath string // Path to proot binary
-	Command []string
-	Env     []string
+	BinPath string   // Path to proot binary
+	Command []string // List of commands
+	Env     []string // Environment variables
 
 	// Flags
 	ChangeID      string   `flag:"change-id"`    // Make current user and group appear as *string* "uid:gid".

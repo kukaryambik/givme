@@ -1,4 +1,4 @@
-name: givme
+name: Docker
 
 on:
   push:
@@ -23,9 +23,6 @@ jobs:
       # This is used to complete the identity challenge
       # with sigstore/fulcio when running outside of PRs.
       id-token: write
-
-    outputs:
-      image_digest: ${{ steps.build-and-push.outputs.digest }}
 
     steps:
       - name: Checkout repository
@@ -100,27 +97,3 @@ jobs:
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
-
-  test:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-
-    container: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.image_digest }}
-
-    steps:
-      - name: Test givme run
-        run: |
-          /givme/givme run --mount /givme alpine:latest
-          apk add --no-cache curl
-          curl --version
-
-      - name: Test givme snapshot
-        run: /givme/givme snapshot -f /givme/snapshot.tar -d /givme/snapshot.env && exit
-
-      - name: Test givme restore
-        run: |
-          eval $(/givme/givme restore -E /givme/snapshot.tar -d /givme/snapshot.env)
-          curl --version

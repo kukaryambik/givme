@@ -48,12 +48,12 @@ type CommandOptions struct {
 
 // Command Options with default values
 var opts = &CommandOptions{
-	Cleanup:      true,
-	LogFormat:    logging.FormatColor,
-	LogLevel:     logging.DefaultLevel,
-	ProotUser:    "0:0",
-	RootFS:       "/",
-	Workdir:      filepath.Join(util.GetExecDir(), "tmp"),
+	Cleanup:   true,
+	LogFormat: logging.FormatColor,
+	LogLevel:  logging.DefaultLevel,
+	ProotUser: "0:0",
+	RootFS:    "/",
+	Workdir:   filepath.Join(util.GetExecDir(), "tmp"),
 }
 
 func Execute() {
@@ -180,6 +180,7 @@ var snapshotCmd = &cobra.Command{
 	Use:     "snapshot",
 	Aliases: []string{"snap"},
 	Short:   "Create a snapshot archive",
+	Example: fmt.Sprintf("SNAPSHOT=$(%s snap)", AppName),
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if opts.TarFile == "" {
 			opts.TarFile = filepath.Join(opts.Workdir, defaultSnapshotFile)
@@ -187,7 +188,11 @@ var snapshotCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		return snapshot(opts)
+		err := snapshot(opts)
+		if err != nil {
+			fmt.Print("false")
+		}
+		return err
 	},
 }
 

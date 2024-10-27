@@ -51,12 +51,12 @@ source <(givme load alpine)
 apk add --no-cache curl
 curl --version
 
-givme snapshot -f alpine-snapshot.tar
+SNAP=$(givme snapshot)
 
 source <(givme load ubuntu)
 apt
 
-source <(givme load alpine-snapshot.tar)
+source <(givme load $SNAP)
 curl --version
 ```
 

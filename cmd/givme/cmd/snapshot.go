@@ -52,7 +52,8 @@ func snapshot(opts *CommandOptions) error {
 		return fmt.Errorf("error creating image: %v", err)
 	}
 
-	logrus.Infof("Snapshot has created! Tarball: %s\n", opts.TarFile)
+	logrus.Infof("Snapshot has created!")
+	fmt.Println(opts.TarFile)
 
 	return nil
 }

@@ -41,48 +41,6 @@ func run(opts *CommandOptions) error {
 		return err
 	}
 
-	// Get the image config
-	imgConf, err := img.Config()
-	if err != nil {
-		return err
-	}
-	cfg := imgConf.Config
-
-	// Create the proot command
-	prootConf := proot.ProotConf{
-		BinPath:    filepath.Join(paths.GetExecDir(), "proot"),
-		RootFS:     opts.RootFS,
-		ChangeID:   util.Coalesce(opts.ProotUser, cfg.User, "0:0"),
-		Workdir:    util.Coalesce(opts.ProotCwd, cfg.WorkingDir, "/"),
-		Env:        cfg.Env,
-		ExtraFlags: opts.ProotFlags,
-		MixedMode:  true,
-		TmpDir:     opts.Workdir,
-		KillOnExit: true,
-	}
-
-	// add volumes & mounts
-	prootConf.Mounts = slices.Concat(opts.ProotMounts, ignores)
-	for v := range cfg.Volumes {
-		tmpDir := filepath.Join(dir, "vol_"+util.Slugify(v))
-		if err := os.MkdirAll(tmpDir, os.ModePerm); err != nil {
-			return fmt.Errorf("error creating directory %s: %v", dir, err)
-		}
-		f := tmpDir + ":" + v
-		prootConf.Mounts = append(prootConf.Mounts, f)
-	}
-
-	// add command
-	prootConf.Command = slices.Concat(
-		cfg.Shell,
-		util.Coalesce([]string{opts.ProotEntrypoint}, cfg.Entrypoint),
-		util.Coalesce(opts.Cmd, cfg.Cmd),
-	)
-
-	// Create the proot command and run it
-	cmd := prootConf.Cmd()
-	logrus.Debugln(cmd.Args)
-
 	// Export the image filesystem to the tar file
 	tmpFS := filepath.Join(dir, "fs.tar")
 	defer os.Remove(tmpFS)
@@ -101,6 +59,49 @@ func run(opts *CommandOptions) error {
 	if err := archiver.Untar(tmpFS, opts.RootFS, ignores); err != nil {
 		return err
 	}
+
+	// Get the image config
+	imgConf, err := img.Config()
+	if err != nil {
+		return err
+	}
+	cfg := imgConf.Config
+
+	// Create the proot command
+	prootConf := proot.ProotConf{
+		BinPath:    filepath.Join(util.GetExecDir(), "proot"),
+		RootFS:     opts.RootFS,
+		ChangeID:   util.Coalesce(opts.ProotUser, cfg.User, "0:0"),
+		Workdir:    util.Coalesce(opts.ProotCwd, cfg.WorkingDir, "/"),
+		Env:        util.PrepareEnv(cfg.Env),
+		ExtraFlags: opts.ProotFlags,
+		MixedMode:  true,
+		TmpDir:     opts.Workdir,
+		KillOnExit: true,
+	}
+
+	// add volumes & mounts
+	prootConf.Mounts = slices.Concat(opts.ProotMounts, ignores)
+	for v := range cfg.Volumes {
+		oldpath := filepath.Join(opts.RootFS, v)
+		newpath := filepath.Join(dir, "vol_"+util.Slugify(v))
+		if err := os.Rename(oldpath, newpath); err != nil {
+			return fmt.Errorf("error renaming %s to %s: %v", oldpath, newpath, err)
+		}
+		f := newpath + ":" + v
+		prootConf.Mounts = append(prootConf.Mounts, f)
+	}
+
+	// add command
+	prootConf.Command = slices.Concat(
+		cfg.Shell,
+		util.Coalesce([]string{opts.ProotEntrypoint}, cfg.Entrypoint),
+		util.Coalesce(opts.Cmd, cfg.Cmd),
+	)
+
+	// Create the proot command and run it
+	cmd := prootConf.Cmd()
+	logrus.Debugln(cmd.Args)
 
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout

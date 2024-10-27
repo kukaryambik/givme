@@ -85,8 +85,6 @@ ENV PATH="/bin:/givme:/givme/busybox" \
     USER="root" \
     SSL_CERT_DIR="/givme/certs"
 
-ENV GIVME_PATH="$PATH"
-
 WORKDIR /givme
 
 # Copy BusyBox

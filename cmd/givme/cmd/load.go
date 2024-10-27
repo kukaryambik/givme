@@ -9,6 +9,7 @@ import (
 	"github.com/kukaryambik/givme/pkg/archiver"
 	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/kukaryambik/givme/pkg/paths"
+	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -30,8 +31,11 @@ func load(opts *CommandOptions) (*image.Image, error) {
 		return nil, err
 	}
 
-	if err := cleanup(opts); err != nil {
-		return nil, err
+	// Clean up the rootfs
+	if opts.Cleanup {
+		if err := cleanup(opts); err != nil {
+			return nil, err
+		}
 	}
 
 	// Configure ignored paths
@@ -51,11 +55,15 @@ func load(opts *CommandOptions) (*image.Image, error) {
 		return nil, fmt.Errorf("error getting config from image %s: %v", img, err)
 	}
 
-	env := cfg.Config.Env
-	if opts.Eval {
-		fmt.Println(strings.Join(env, "\n"))
-	}
-
 	logrus.Infof("Image %s has been loaded!\n", opts.Image)
+
+	envs := util.PrepareEnv(cfg.Config.Env)
+
+	fmt.Printf(
+		"# Environments variables for %s:\n%s\n",
+		opts.Image,
+		strings.Join(envs, "\n"),
+	)
+
 	return img, nil
 }

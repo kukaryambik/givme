@@ -36,13 +36,17 @@ func load(path string) (*Image, error) {
 		return nil, fmt.Errorf("error loading image from tar file %s: %v", path, err)
 	}
 
-	imgName, err := GetNamesFromTarball(path)
+	imgNames, err := GetNamesFromTarball(path)
 	if err != nil {
 		return nil, err
 	}
 
-	logrus.Debugf("Image %s loaded from tarball: %s", imgName, path)
-	return &Image{Image: img, Name: imgName[0]}, nil
+	image := &Image{Image: img}
+	if len(imgNames) > 0 {
+		image.Name = imgNames[0]
+	}
+
+	return image, nil
 }
 
 // Pull pulls the image using both provided credentials and the default keychain.
@@ -100,6 +104,10 @@ func pull(auth *authn.Basic, image, mirror string) (*Image, error) {
 }
 
 func (conf *GetConf) Get() (*Image, error) {
+	if paths.IsFileExists(conf.Image) {
+		conf.File = conf.Image
+	}
+
 	if !paths.IsFileExists(conf.File) {
 		auth := &authn.Basic{
 			Username: conf.RegistryUsername,

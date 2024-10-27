@@ -490,12 +490,12 @@ func TestGetConf_Get_ErrorPullingImage(t *testing.T) {
 }
 
 func TestGetName_ValidReference(t *testing.T) {
-	imageName := "docker.io/library/alpine:latest"
+	imageName := "alpine"
 
 	name, err := GetName(imageName)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "library/alpine:latest", name)
+	assert.Equal(t, "alpine:latest", name)
 }
 
 func TestGetName_InvalidReference(t *testing.T) {

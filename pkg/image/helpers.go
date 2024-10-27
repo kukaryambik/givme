@@ -27,9 +27,13 @@ func GetName(i string) (string, error) {
 		return "", fmt.Errorf("error parsing image %s: %v", i, err)
 	}
 
-	n := strings.TrimPrefix(ref.Name(), name.DefaultRegistry+"/")
+	if ref.Context().RegistryStr() == name.DefaultRegistry {
+		suffix := strings.SplitN(ref.Name(), i, 2)[1]
+		return i + suffix, nil
+	}
 
-	return n, nil
+	// Return the name
+	return ref.Name(), nil
 }
 
 func MkImageDir(dir, image string) (string, error) {
@@ -66,7 +70,8 @@ func getNamesFromTarball(path string) ([]string, error) {
 	}
 
 	if len(repoTags) == 0 {
-		return nil, fmt.Errorf("no repo tags found in manifest")
+		logrus.Debugf("No repository tags found in manifest of %s", path)
+		return nil, nil
 	}
 
 	return repoTags, nil

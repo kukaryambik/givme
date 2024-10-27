@@ -49,7 +49,7 @@ func (conf *IgnoreConf) List() ([]string, error) {
 	}
 
 	if conf.IgnoreExecDir {
-		conf.IgnorePaths = append(conf.IgnorePaths, GetExecDir())
+		conf.IgnorePaths = append(conf.IgnorePaths, util.GetExecDir())
 	}
 
 	if conf.IgnoreSystem {

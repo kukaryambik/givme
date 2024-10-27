@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 )
 
 // Rmrf removes all files and directories in the provided paths.
@@ -20,21 +18,6 @@ var Rmrf = func(paths ...string) error {
 		}
 	}
 	return nil
-}
-
-// GetExecDir returns the directory of the current executable.
-var GetExecDir = func() string {
-	exe, err := os.Executable()
-	if err != nil {
-		exe = "."
-	}
-	dir := filepath.Dir(exe)
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		logrus.Warnf("failed to get absolute path: %v", err)
-		return dir
-	}
-	return absDir
 }
 
 // GetMounts returns a list of mounted directories.

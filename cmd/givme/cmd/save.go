@@ -24,6 +24,7 @@ func save(opts *CommandOptions) (*image.Image, error) {
 		RegistryPassword: opts.RegistryPassword,
 		RegistryUsername: opts.RegistryUsername,
 		Retry:            opts.Retry,
+		CacheDir:         filepath.Join(opts.Workdir, "cache"),
 	}
 
 	return img.Get()

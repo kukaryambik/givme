@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/crane"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/cache"
 	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
@@ -20,6 +21,7 @@ type GetConf struct {
 	RegistryPassword string
 	RegistryUsername string
 	Retry            int
+	CacheDir         string
 }
 
 var (
@@ -50,10 +52,8 @@ func load(path string) (*Image, error) {
 }
 
 // Pull pulls the image using both provided credentials and the default keychain.
-var Pull = pull
-
-func pull(auth *authn.Basic, image, mirror string) (*Image, error) {
-	logrus.Debugf("Pulling image: %s", image)
+func (conf *GetConf) Pull() (*Image, error) {
+	logrus.Debugf("Pulling image: %s", conf.Image)
 
 	// Set the default platform
 	platform := v1.Platform{
@@ -61,46 +61,43 @@ func pull(auth *authn.Basic, image, mirror string) (*Image, error) {
 		OS:           runtime.GOOS,
 	}
 
-	// Trying to pull the image with anonymous access
-	img, err := cranePullFunc(
-		withMirror(image, mirror),
-		crane.WithAuth(authn.Anonymous),
-		crane.WithPlatform(&platform),
-	)
-	if err == nil {
-		logrus.Debugf("Successfully pulled image without credentials: %s", image)
-		return &Image{Image: img, Name: image}, nil
-	}
+	nameWithMirror := withMirror(conf.Image, conf.RegistryMirror)
+	var image v1.Image
 
-	// Checking if the error is an authentication error
-	if !isUnauthorizedError(err) {
-		logrus.Errorf("Error pulling image %s: %v", image, err)
+	// Trying to pull the image with anonymous access
+	image, err := cranePullFunc(
+		nameWithMirror, crane.WithPlatform(&platform), crane.WithAuth(authn.Anonymous),
+	)
+
+	switch {
+	case err == nil:
+		logrus.Debugf("Successfully pulled image: %s", conf.Image)
+
+	// If valid credentials are available, retry with them
+	case isUnauthorizedError(err) && conf.RegistryUsername+conf.RegistryPassword != "":
+		logrus.Debugf("Retrying pulling image with credentials")
+		basicAuth := authn.FromConfig(
+			authn.AuthConfig{
+				Username: conf.RegistryUsername,
+				Password: conf.RegistryPassword,
+			},
+		)
+		if image, err = cranePullFunc(
+			nameWithMirror, crane.WithPlatform(&platform), crane.WithAuth(basicAuth),
+		); err != nil {
+			return nil, fmt.Errorf("error pulling image with credentials %s: %v", image, err)
+		}
+
+	default:
 		return nil, fmt.Errorf("error pulling image %s: %v", image, err)
 	}
 
-	// If valid credentials are available, retry with them
-	if auth != nil && auth.Username != "" && auth.Password != "" {
-		logrus.Debugf("Retrying pulling image with credentials: %s", image)
-		basicAuth := authn.FromConfig(authn.AuthConfig{
-			Username: auth.Username,
-			Password: auth.Password,
-		})
-		img, err = cranePullFunc(
-			withMirror(image, mirror),
-			crane.WithAuth(basicAuth),
-			crane.WithPlatform(&platform),
-		)
-		if err != nil {
-			logrus.Errorf("Error pulling image with credentials %s: %v", image, err)
-			return nil, fmt.Errorf("error pulling image with credentials %s: %v", image, err)
-		}
-		logrus.Debugf("Successfully pulled image with credentials: %s", image)
-		return &Image{Image: img, Name: image}, nil
-	}
+	// Set up the cache directory
+	blobCache := cache.NewFilesystemCache(conf.CacheDir)
+	cachedImage := cache.Image(image, blobCache)
 
-	// If no valid credentials are available or pulling with them failed
-	logrus.Errorf("Error pulling image %s: %v", image, err)
-	return nil, fmt.Errorf("error pulling image %s: %v", image, err)
+	logrus.Debugf("Successfully pulled image with credentials: %s", image)
+	return &Image{Image: cachedImage, Name: conf.Image}, nil
 }
 
 func (conf *GetConf) Get() (*Image, error) {
@@ -109,12 +106,8 @@ func (conf *GetConf) Get() (*Image, error) {
 	}
 
 	if !paths.IsFileExists(conf.File) {
-		auth := &authn.Basic{
-			Username: conf.RegistryUsername,
-			Password: conf.RegistryPassword,
-		}
 		err := util.Retry(conf.Retry, 5*time.Second, func() error {
-			img, err := Pull(auth, conf.Image, conf.RegistryMirror)
+			img, err := conf.Pull()
 			if err != nil {
 				return err
 			}

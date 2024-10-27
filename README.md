@@ -190,5 +190,5 @@ Flags:
 - [ ] Webserver to control it with API
 - [ ] Download and store images by layers
 - [ ] Add list of allowed registries
-- [ ] Save snapshot as an image
+- [x] Save snapshot as an image
 - [ ] Add flag --add to snapshot to create a new layer

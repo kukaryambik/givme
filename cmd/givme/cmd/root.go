@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/kukaryambik/givme/pkg/logging"
 	"github.com/kukaryambik/givme/pkg/util"
@@ -25,13 +26,13 @@ var (
 )
 
 type CommandOptions struct {
-	Cleanup          bool `mapstructure:"cleanup"`
 	Cmd              []string
 	IgnorePaths      []string `mapstructure:"ignore"`
 	Image            string
 	LogFormat        string   `mapstructure:"log-format"`
 	LogLevel         string   `mapstructure:"log-level"`
 	LogTimestamp     bool     `mapstructure:"log-timestamp"`
+	NoPurge          bool     `mapstructure:"no-purge"`
 	ProotCwd         string   `mapstructure:"cwd"`
 	ProotEntrypoint  string   `mapstructure:"entrypoint"`
 	ProotFlags       []string `mapstructure:"proot-flags"`
@@ -40,15 +41,14 @@ type CommandOptions struct {
 	RegistryMirror   string   `mapstructure:"registry-mirror"`
 	RegistryPassword string   `mapstructure:"registry-password"`
 	RegistryUsername string   `mapstructure:"registry-username"`
-	Retry            int      `mapstructure:"retry"`
 	RootFS           string   `mapstructure:"rootfs"`
 	TarFile          string
+	Update           bool   `mapstructure:"update"`
 	Workdir          string `mapstructure:"workdir"`
 }
 
 // Command Options with default values
 var opts = &CommandOptions{
-	Cleanup:   true,
 	LogFormat: logging.FormatColor,
 	LogLevel:  logging.DefaultLevel,
 	ProotUser: "0:0",
@@ -56,9 +56,13 @@ var opts = &CommandOptions{
 	Workdir:   filepath.Join(util.GetExecDir(), "tmp"),
 }
 
+var defaultImagesDir = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "images") })
+var defaultLayersDir = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "layers") })
+var defaultCacheDir = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "cache") })
+
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
+		logrus.Fatal(err)
 	}
 }
 
@@ -69,6 +73,13 @@ func mkFlags(c func(*cobra.Command), l ...*cobra.Command) {
 }
 
 func init() {
+	// Create default directories
+	for _, p := range []string{defaultImagesDir(), defaultLayersDir(), defaultCacheDir()} {
+		if err := os.MkdirAll(p, os.ModePerm); err != nil {
+			logrus.Fatalf("Error creating directory %s: %v", p, err)
+		}
+	}
+
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(
 		&opts.RootFS, "rootfs", "r", opts.RootFS, "RootFS directory; or use GIVME_ROOTFS")
@@ -97,28 +108,21 @@ func init() {
 		// Add them to the list of subcommands
 		snapshotCmd, saveCmd,
 	)
-	// --retry and --registry-[mirror|username|password]
-	mkFlags(func(cmd *cobra.Command) {
-		cmd.Flags().IntVar(
-			&opts.Retry, "retry", 0, "Retry attempts of downloading the image; or use GIVME_RETRY")
-		cmd.Flags().StringVar(
-			&opts.RegistryMirror, "registry-mirror", opts.RegistryMirror, "Registry mirror; or use GIVME_REGISTRY_MIRROR")
-		cmd.Flags().StringVar(
-			&opts.RegistryUsername, "registry-username", opts.RegistryUsername, "Username for registry authentication; or use GIVME_REGISTRY_USERAppName")
-		cmd.Flags().StringVar(
-			&opts.RegistryPassword, "registry-password", opts.RegistryPassword, "Password for registry authentication; or use GIVME_REGISTRY_PASSWORD")
-	},
-		// Add them to the list of subcommands
-		saveCmd, loadCmd, runCmd,
-	)
-
-	// --cleanup
+	// --update
 	mkFlags(func(cmd *cobra.Command) {
 		cmd.Flags().BoolVar(
-			&opts.Cleanup, "cleanup", opts.Cleanup, "Clean up root directory before load")
+			&opts.Update, "update", opts.Update, "Update the image instead of using existing file")
 	},
 		// Add them to the list of subcommands
-		loadCmd, runCmd,
+		applyCmd, runCmd, saveCmd,
+	)
+	// --no-purge
+	mkFlags(func(cmd *cobra.Command) {
+		cmd.Flags().BoolVar(
+			&opts.NoPurge, "no-purge", opts.NoPurge, "Do not purge the root directory before unpacking the image")
+	},
+		// Add them to the list of subcommands
+		applyCmd, runCmd,
 	)
 
 	runCmd.Flags().StringVar(
@@ -138,10 +142,10 @@ func init() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv() // Automatically bind environment variables
 
-	// Add subcommands for snapshot, restore, and cleanup.
+	// Add subcommands
 	rootCmd.AddCommand(
-		cleanupCmd,
-		loadCmd,
+		purgeCmd,
+		applyCmd,
 		runCmd,
 		saveCmd,
 		snapshotCmd,
@@ -183,12 +187,12 @@ var snapshotCmd = &cobra.Command{
 	Example: fmt.Sprintf("SNAPSHOT=$(%s snap)", AppName),
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if opts.TarFile == "" {
-			opts.TarFile = filepath.Join(opts.Workdir, defaultSnapshotFile)
+			opts.TarFile = filepath.Join(defaultImagesDir(), defaultSnapshotFile())
 		}
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		err := snapshot(opts)
+		err := opts.snapshot()
 		if err != nil {
 			fmt.Print("false")
 		}
@@ -196,13 +200,13 @@ var snapshotCmd = &cobra.Command{
 	},
 }
 
-var cleanupCmd = &cobra.Command{
-	Use:     "cleanup",
-	Aliases: []string{"c", "clean"},
-	Short:   "Clean up directories",
+var purgeCmd = &cobra.Command{
+	Use:     "purge",
+	Aliases: []string{"p", "clear"},
+	Short:   "Purge the rootfs directory",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		return cleanup(opts)
+		return opts.purge()
 	},
 }
 
@@ -214,21 +218,25 @@ var saveCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
 		cmd.SilenceUsage = true
-		_, err := save(opts)
+		img, err := opts.save()
+		if err != nil {
+			fmt.Print("false")
+		}
+		fmt.Println(img.File)
 		return err
 	},
 }
 
-var loadCmd = &cobra.Command{
-	Use:     "load [flags] IMAGE",
-	Aliases: []string{"l", "lo", "loa"},
-	Example: fmt.Sprintf("source <(%s load alpine)", AppName),
+var applyCmd = &cobra.Command{
+	Use:     "apply [flags] IMAGE",
+	Aliases: []string{"a", "an", "the"},
+	Example: fmt.Sprintf("source <(%s apply alpine)", AppName),
 	Short:   "Extract the container filesystem to the rootfs directory",
 	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
 		cmd.SilenceUsage = true
-		_, err := load(opts)
+		_, err := opts.apply()
 		if err != nil {
 			fmt.Print("false")
 		}
@@ -245,7 +253,7 @@ var runCmd = &cobra.Command{
 		opts.Image = args[0]
 		opts.Cmd = args[1:]
 		cmd.SilenceUsage = true
-		return run(opts)
+		return opts.run()
 	},
 }
 

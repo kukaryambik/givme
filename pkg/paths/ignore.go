@@ -85,7 +85,7 @@ func (conf *IgnoreConf) List() ([]string, error) {
 		a = slices.Delete(a, i, i+1)
 
 		// Check if the path should be ignored
-		if IsPathFrom(v, a) {
+		if PathFrom(v, a) {
 			continue
 		}
 

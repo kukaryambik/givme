@@ -15,23 +15,24 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func run(opts *CommandOptions) error {
+func (opts *CommandOptions) run() error {
 
 	// Get the image
-	img, err := save(opts)
+	img, err := opts.save()
 	if err != nil {
 		return err
 	}
 
-	// Create the image workspace
-	dir, err := image.MkImageDir(opts.Workdir, opts.Image)
+	// Get image slug
+	imageSlug, err := image.GetNameSlug(opts.Image)
 	if err != nil {
 		return err
 	}
 
 	// Set the rootfs directory
 	if strings.Trim(opts.RootFS, "/") == "" {
-		opts.RootFS = filepath.Join(dir, "rootfs")
+		opts.RootFS = filepath.Join(opts.Workdir, "rootfs_"+imageSlug)
+		logrus.Infof("Using '%s' as rootfs", opts.RootFS)
 	}
 
 	// Configure ignored paths
@@ -41,23 +42,32 @@ func run(opts *CommandOptions) error {
 		return err
 	}
 
-	// Export the image filesystem to the tar file
-	tmpFS := filepath.Join(dir, "fs.tar")
-	defer os.Remove(tmpFS)
-	if err := img.Export(tmpFS); err != nil {
-		return err
-	}
-
-	// Clean up the rootfs
-	if opts.Cleanup {
-		if err := cleanup(opts); err != nil {
+	// Purge the rootfs
+	if !opts.NoPurge {
+		logrus.Infof("Purging rootfs '%s'", opts.RootFS)
+		if err := paths.Rmrf(opts.RootFS, ignores); err != nil {
 			return err
 		}
 	}
 
+	logrus.Infof("Extracting filesystem to '%s'", opts.RootFS)
+
 	// Untar the filesystem
-	if err := archiver.Untar(tmpFS, opts.RootFS, ignores); err != nil {
+	layers, err := img.Image.Layers()
+	if err != nil {
 		return err
+	}
+	for _, layer := range layers {
+		uncompressed, err := layer.Uncompressed()
+		if err != nil {
+			return err
+		}
+		if err := archiver.Untar(uncompressed, opts.RootFS, ignores); err != nil {
+			return err
+		}
+		if err := uncompressed.Close(); err != nil {
+			return err
+		}
 	}
 
 	// Get the image config
@@ -84,7 +94,7 @@ func run(opts *CommandOptions) error {
 	prootConf.Mounts = slices.Concat(opts.ProotMounts, ignores)
 	for v := range cfg.Volumes {
 		oldpath := filepath.Join(opts.RootFS, v)
-		newpath := filepath.Join(dir, "vol_"+util.Slugify(v))
+		newpath := filepath.Join(defaultCacheDir(), "vol_"+imageSlug+util.Slugify(v))
 		if err := os.Rename(oldpath, newpath); err != nil {
 			return fmt.Errorf("error renaming %s to %s: %v", oldpath, newpath, err)
 		}
@@ -101,11 +111,13 @@ func run(opts *CommandOptions) error {
 
 	// Create the proot command and run it
 	cmd := prootConf.Cmd()
-	logrus.Debugln(cmd.Args)
+	logrus.Debug(cmd.Args)
 
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
+
+	logrus.Info("Running proot")
 
 	// Run the command
 	if err := cmd.Run(); err != nil {

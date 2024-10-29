@@ -68,7 +68,7 @@ func (cfg *ProotConf) Cmd() *exec.Cmd {
 	// check UID:GID
 	expr, _ := regexp.Compile("^[0-9]+(:[0-9]+)?$")
 	if !expr.MatchString(cfg.ChangeID) {
-		logrus.Warnf("UID:GID %s is not numeric!", cfg.ChangeID)
+		logrus.Warnf("UID:GID %s is not numeric", cfg.ChangeID)
 		cfg.ChangeID = ""
 	}
 
@@ -120,9 +120,6 @@ func (cfg *ProotConf) Cmd() *exec.Cmd {
 		args = append(args, cfg.Command...)
 		logrus.Debugf("Added command: %v (%v)", cfg.Command, len(cfg.Command))
 	}
-
-	// Uniq
-	args = util.UniqString(args)
 
 	// Remove empty strings
 	for _, str := range args {

@@ -3,15 +3,24 @@ package paths
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 // Rmrf removes all files and directories in the provided paths.
-var Rmrf = func(paths ...string) error {
-	for _, path := range paths {
+var Rmrf = func(path string, ignore []string) error {
+
+	// List all paths
+	var lst []string
+	if err := GetList(path, ignore, &lst); err != nil {
+		return err
+	}
+
+	logrus.Debugf("Removing paths: %v", lst)
+	for _, path := range lst {
 		err := os.RemoveAll(path)
 		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("failed to remove %s: %w", path, err)
@@ -53,8 +62,8 @@ func AbsAll(paths []string) ([]string, error) {
 	return absPaths, nil
 }
 
-// IsPathFrom checks if a path originates from any of the listed paths.
-var IsPathFrom = func(path string, list []string) bool {
+// PathFrom checks if a path originates from any of the listed paths.
+var PathFrom = func(path string, list []string) bool {
 	for _, base := range list {
 		if path == base || strings.HasPrefix(path, base+string(os.PathSeparator)) {
 			return true
@@ -63,8 +72,8 @@ var IsPathFrom = func(path string, list []string) bool {
 	return false
 }
 
-// IsPathContains checks if a path contains any of the listed paths.
-var IsPathContains = func(path string, list []string) bool {
+// PathContains checks if a path contains any of the listed paths.
+var PathContains = func(path string, list []string) bool {
 	for _, c := range list {
 		p := strings.TrimRight(path, string(os.PathSeparator)) + string(os.PathSeparator)
 		if path == c || strings.HasPrefix(c, p) {
@@ -74,23 +83,8 @@ var IsPathContains = func(path string, list []string) bool {
 	return false
 }
 
-// IsDirEmpty checks if the specified directory is empty.
-func IsDirEmpty(dir string) (bool, error) {
-	f, err := os.Open(dir)
-	if err != nil {
-		return false, err
-	}
-	defer f.Close()
-
-	_, err = f.Readdirnames(1)
-	if err == io.EOF {
-		return true, nil
-	}
-	return false, err
-}
-
-// IsFileExists checks if the specified file exists.
-var IsFileExists = func(path string) bool {
+// FileExists checks if the specified file exists.
+var FileExists = func(path string) bool {
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
 		return false

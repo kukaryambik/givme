@@ -75,8 +75,13 @@ func TestRegularFiles(t *testing.T) {
 	}
 
 	// Extract
+	tar, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar archive: %v", err)
+	}
+	defer tar.Close()
 	extractDir := filepath.Join(dstDir, "extracted")
-	err = Untar(tarPath, extractDir, nil)
+	err = Untar(tar, extractDir, nil)
 	if err != nil {
 		t.Fatalf("Untar failed: %v", err)
 	}
@@ -119,8 +124,13 @@ func TestDirectories(t *testing.T) {
 	}
 
 	// Extract
+	tar, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar archive: %v", err)
+	}
+	defer tar.Close()
 	extractDir := filepath.Join(dstDir, "extracted")
-	err = Untar(tarPath, extractDir, nil)
+	err = Untar(tar, extractDir, nil)
 	if err != nil {
 		t.Fatalf("Untar failed: %v", err)
 	}
@@ -169,8 +179,13 @@ func TestSymlinks(t *testing.T) {
 	}
 
 	// Extract
+	tar, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar archive: %v", err)
+	}
+	defer tar.Close()
 	extractDir := filepath.Join(dstDir, "extracted")
-	err = Untar(tarPath, extractDir, nil)
+	err = Untar(tar, extractDir, nil)
 	if err != nil {
 		t.Fatalf("Untar failed: %v", err)
 	}
@@ -216,8 +231,13 @@ func TestHardLinks(t *testing.T) {
 	}
 
 	// Extract
+	tar, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar archive: %v", err)
+	}
+	defer tar.Close()
 	extractDir := filepath.Join(dstDir, "extracted")
-	err = Untar(tarPath, extractDir, nil)
+	err = Untar(tar, extractDir, nil)
 	if err != nil {
 		t.Fatalf("Untar failed: %v", err)
 	}
@@ -270,8 +290,13 @@ func TestExclusions(t *testing.T) {
 	}
 
 	// Extract
+	tar, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar archive: %v", err)
+	}
+	defer tar.Close()
 	extractDir := filepath.Join(dstDir, "extracted")
-	err = Untar(tarPath, extractDir, nil)
+	err = Untar(tar, extractDir, nil)
 	if err != nil {
 		t.Fatalf("Untar failed: %v", err)
 	}
@@ -304,8 +329,13 @@ func TestPermissions(t *testing.T) {
 	}
 
 	// Extract
+	tar, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar archive: %v", err)
+	}
+	defer tar.Close()
 	extractDir := filepath.Join(dstDir, "extracted")
-	err = Untar(tarPath, extractDir, nil)
+	err = Untar(tar, extractDir, nil)
 	if err != nil {
 		t.Fatalf("Untar failed: %v", err)
 	}
@@ -351,8 +381,13 @@ func TestOwnership(t *testing.T) {
 	}
 
 	// Extract
+	tar, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar archive: %v", err)
+	}
+	defer tar.Close()
 	extractDir := filepath.Join(dstDir, "extracted")
-	err = Untar(tarPath, extractDir, nil)
+	err = Untar(tar, extractDir, nil)
 	if err != nil {
 		t.Fatalf("Untar failed: %v", err)
 	}
@@ -400,8 +435,13 @@ func TestTimes(t *testing.T) {
 	}
 
 	// Extract
+	tar, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar archive: %v", err)
+	}
+	defer tar.Close()
 	extractDir := filepath.Join(dstDir, "extracted")
-	err = Untar(tarPath, extractDir, nil)
+	err = Untar(tar, extractDir, nil)
 	if err != nil {
 		t.Fatalf("Untar failed: %v", err)
 	}
@@ -444,8 +484,13 @@ func TestEmptyFilesAndDirectories(t *testing.T) {
 	}
 
 	// Extract
+	tar, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar archive: %v", err)
+	}
+	defer tar.Close()
 	extractDir := filepath.Join(dstDir, "extracted")
-	err = Untar(tarPath, extractDir, nil)
+	err = Untar(tar, extractDir, nil)
 	if err != nil {
 		t.Fatalf("Untar failed: %v", err)
 	}
@@ -490,8 +535,13 @@ func TestLongPaths(t *testing.T) {
 	}
 
 	// Extract
+	tar, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar archive: %v", err)
+	}
+	defer tar.Close()
 	extractDir := filepath.Join(dstDir, "extracted")
-	err = Untar(tarPath, extractDir, nil)
+	err = Untar(tar, extractDir, nil)
 	if err != nil {
 		t.Fatalf("Untar failed: %v", err)
 	}
@@ -537,8 +587,13 @@ func TestArchiveAndExtract(t *testing.T) {
 	}
 
 	// Extract
+	tar, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar archive: %v", err)
+	}
+	defer tar.Close()
 	extractDir := filepath.Join(dstDir, "extracted")
-	err = Untar(tarPath, extractDir, nil)
+	err = Untar(tar, extractDir, nil)
 	if err != nil {
 		t.Fatalf("Untar failed: %v", err)
 	}
@@ -576,8 +631,13 @@ func TestSpecialFiles(t *testing.T) {
 	}
 
 	// Extract
+	tar, err := os.Open(tarPath)
+	if err != nil {
+		t.Fatalf("Failed to open tar archive: %v", err)
+	}
+	defer tar.Close()
 	extractDir := filepath.Join(dstDir, "extracted")
-	err = Untar(tarPath, extractDir, nil)
+	err = Untar(tar, extractDir, nil)
 	if err != nil {
 		t.Fatalf("Untar failed: %v", err)
 	}

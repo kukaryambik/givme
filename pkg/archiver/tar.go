@@ -117,7 +117,7 @@ func (ta *tarArchiver) walkFunc(file string, fi os.FileInfo, err error) error {
 		return err
 	}
 
-	if paths.IsPathFrom(file, ta.absExcl) {
+	if paths.PathFrom(file, ta.absExcl) {
 		logrus.Tracef("Excluding: %s", file)
 		if fi.IsDir() {
 			return filepath.SkipDir

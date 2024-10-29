@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -18,10 +17,11 @@ import (
 type Image struct {
 	Image v1.Image
 	Name  string
+	File  string
 }
 
 // GetName returns the fullname of the image
-func GetName(i string) (string, error) {
+var GetName = func(i string) (string, error) {
 	ref, err := name.ParseReference(i)
 	if err != nil {
 		return "", fmt.Errorf("error parsing image %s: %v", i, err)
@@ -36,23 +36,17 @@ func GetName(i string) (string, error) {
 	return ref.Name(), nil
 }
 
-func MkImageDir(dir, image string) (string, error) {
-	fullName, err := GetName(image)
+// GetNameSlug returns the slugified fullname of the image
+var GetNameSlug = func(i string) (string, error) {
+	name, err := GetName(i)
 	if err != nil {
 		return "", err
 	}
-	slugName := util.Slugify(fullName)
-	dirName := filepath.Join(dir, slugName)
-	if err := os.MkdirAll(dirName, os.ModePerm); err != nil {
-		return "", err
-	}
-	return dirName, nil
+	return util.Slugify(name), nil
 }
 
 // GetNamesFromTarball is a helper function to get the image names from a tarball
-var GetNamesFromTarball = getNamesFromTarball
-
-func getNamesFromTarball(path string) ([]string, error) {
+var GetNamesFromTarball = func(path string) ([]string, error) {
 	opener := func() (io.ReadCloser, error) {
 		return os.Open(path)
 	}
@@ -78,7 +72,7 @@ func getNamesFromTarball(path string) ([]string, error) {
 }
 
 // isUnauthorizedError is a helper function to check if the error is an authentication error
-func isUnauthorizedError(err error) bool {
+var isUnauthorizedError = func(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -87,16 +81,17 @@ func isUnauthorizedError(err error) bool {
 }
 
 // withMirror updates docker registry of the image to the mirror
-func withMirror(img, mirror string) string {
-	if mirror == "" {
-		return img
-	}
+func withMirror(img, mirror string) (name.Reference, error) {
 
 	// Parse the reference for the current image
 	ref, err := name.ParseReference(img)
 	if err != nil {
 		logrus.Warnf("Error parsing image %s: %v", img, err)
-		return img
+		return nil, fmt.Errorf("error parsing image %s: %v", img, err)
+	}
+
+	if mirror == "" {
+		return ref, nil
 	}
 
 	logrus.Debugf("Image successfully parsed: %s. Registry: %s, Repository: %s, Identifier: %s",
@@ -106,8 +101,7 @@ func withMirror(img, mirror string) string {
 	if ref.Context().RegistryStr() == name.DefaultRegistry {
 		newReg, err := name.NewRegistry(mirror)
 		if err != nil {
-			logrus.Warnf("Error parsing registry %s: %v", mirror, err)
-			return img
+			return ref, fmt.Errorf("error parsing registry %s: %v", mirror, err)
 		}
 
 		repo := ref.Context().RepositoryStr()
@@ -115,14 +109,14 @@ func withMirror(img, mirror string) string {
 
 		// Return a new image with the updated name (registry mirror)
 		if _, ok := ref.(name.Digest); ok {
-			return newReg.Repo(repo).Digest(ident).Name()
+			return newReg.Repo(repo).Digest(ident), nil
 		} else if _, ok := ref.(name.Tag); ok {
-			return newReg.Repo(repo).Tag(ident).Name()
+			return newReg.Repo(repo).Tag(ident), nil
 		}
 	} else {
 		logrus.Debugf("Registry is not Docker Hub: %s, no changes required", ref.Context().RegistryStr())
 	}
 
 	// If no changes were made, return the original image
-	return img
+	return ref, nil
 }

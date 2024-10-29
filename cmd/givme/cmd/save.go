@@ -4,17 +4,19 @@ import (
 	"path/filepath"
 
 	"github.com/kukaryambik/givme/pkg/image"
+	"github.com/sirupsen/logrus"
 )
 
-func save(opts *CommandOptions) (*image.Image, error) {
+func (opts *CommandOptions) save() (*image.Image, error) {
 
-	dir, err := image.MkImageDir(opts.Workdir, opts.Image)
+	logrus.Infof("Loading image for %s", opts.Image)
+
+	imageSlug, err := image.GetNameSlug(opts.Image)
 	if err != nil {
 		return nil, err
 	}
-
 	if opts.TarFile == "" {
-		opts.TarFile = filepath.Join(dir, "image.tar")
+		opts.TarFile = filepath.Join(defaultImagesDir(), imageSlug+".tar")
 	}
 
 	img := &image.GetConf{
@@ -23,8 +25,8 @@ func save(opts *CommandOptions) (*image.Image, error) {
 		RegistryMirror:   opts.RegistryMirror,
 		RegistryPassword: opts.RegistryPassword,
 		RegistryUsername: opts.RegistryUsername,
-		Retry:            opts.Retry,
-		CacheDir:         filepath.Join(opts.Workdir, "cache"),
+		CacheDir:         defaultLayersDir(),
+		Update:           opts.Update,
 	}
 
 	return img.Get()

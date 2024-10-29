@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
-	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -33,17 +33,18 @@ func PrepareEnv(env []string) []string {
 	path := slices.IndexFunc(env, func(s string) bool {
 		return strings.HasPrefix(s, "PATH=")
 	})
-	logrus.Debugf("PATH index: %d\n", path)
+	logrus.Debugf("PATH index: %d", path)
 	if path != -1 {
 		env[path] = env[path] + ":" + GetExecDir()
 	}
 
 	// Format environment variables for export
 	for n, e := range env {
-		env[n] = "export " + e
+		kv := strings.SplitN(e, "=", 2)
+		env[n] = fmt.Sprintf("export %s=%s", kv[0], strconv.Quote(kv[1]))
 	}
 
-	logrus.Debugf("Environments variables: %s\n", env)
+	logrus.Debugf("Environments variables: %s", env)
 	return env
 }
 
@@ -78,23 +79,6 @@ func UniqString(a []string) []string {
 	}
 
 	return results
-}
-
-// Retry attempts to execute a function multiple times with delay between attempts
-var Retry = func(retries int, sleep time.Duration, fn func() error) error {
-	var err error
-	for i := 0; i <= retries; i++ {
-		if err = fn(); err == nil {
-			return nil
-		}
-
-		logrus.Warnf("attempt %d/%d failed: %v", i, retries, err)
-
-		if i < retries {
-			time.Sleep(sleep * time.Duration(i))
-		}
-	}
-	return fmt.Errorf("after %d attempts, last error: %s", retries, err)
 }
 
 // Slugify converts a string into a slug (URL-friendly format).

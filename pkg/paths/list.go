@@ -31,14 +31,14 @@ func GetList(path string, ignore []string, lst *[]string) error {
 		return fmt.Errorf("error getting file info for path %s: %v", absPath, err)
 	}
 
-	// Check if the path should be ignored using util.IsPathFrom
-	if IsPathFrom(absPath, absExclude) {
-		logrus.Debugf("Path %s is ignored by IsPathFrom", absPath)
+	// Check if the path should be ignored using util.PathFrom
+	if PathFrom(absPath, absExclude) {
+		logrus.Debugf("Path %s is ignored by PathFrom", absPath)
 		return nil
 	}
 
 	// Check if the path contain some ignores in it
-	if fi.IsDir() && IsPathContains(absPath, absExclude) {
+	if fi.IsDir() && PathContains(absPath, absExclude) {
 		logrus.Tracef("Path %s is a directory", absPath)
 
 		// Read the contents of the directory

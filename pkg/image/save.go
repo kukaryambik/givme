@@ -17,6 +17,7 @@ func (img *Image) Save(path string) error {
 		return fmt.Errorf("error saving image to tar file %s: %v", path, err)
 	}
 
-	logrus.Debugf("Image saved as tarball: %s", path)
+	img.File = path
+	logrus.Debugf("Image saved as tarball: %s", img.File)
 	return nil
 }

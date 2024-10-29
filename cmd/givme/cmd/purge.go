@@ -7,8 +7,8 @@ import (
 
 // Cleanup removes files and directories in the target directory,
 // excluding the paths specified in excludes.
-func cleanup(opts *CommandOptions) error {
-	logrus.Debugf("Starting cleanup...")
+func (opts *CommandOptions) purge() error {
+	logrus.Infof("Purging rootfs '%s'", opts.RootFS)
 
 	// Configure ignored paths
 	ignoreConf := paths.Ignore(opts.IgnorePaths).ExclFromList(opts.RootFS)
@@ -17,18 +17,11 @@ func cleanup(opts *CommandOptions) error {
 		return err
 	}
 
-	// List all paths
-	var lst []string
-	if err := paths.GetList(opts.RootFS, ignores, &lst); err != nil {
-		logrus.Errorf("Error listing paths: %v", err)
+	if err := paths.Rmrf(opts.RootFS, ignores); err != nil {
 		return err
 	}
 
-	logrus.Debugf("Removing paths: %v", lst)
-	if err := paths.Rmrf(lst...); err != nil {
-		return err
-	}
+	logrus.Info("Rootfs purged")
 
-	logrus.Infoln("Cleanup has completed!")
 	return nil
 }

@@ -69,6 +69,7 @@ func (conf *GetConf) Pull() (*Image, error) {
 
 	opts := []remote.Option{
 		remote.WithPlatform(platform),
+		remote.WithJobs(runtime.NumCPU()),
 		remote.WithRetryBackoff(remote.Backoff{
 			Duration: 1 * time.Second,
 			Factor:   2.0,

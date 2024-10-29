@@ -6,10 +6,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"syscall"
 
 	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 var Chown bool = os.Getuid() == 0
@@ -30,6 +32,9 @@ func Untar(src io.Reader, dst string, excl []string) error {
 	}
 
 	tr := tar.NewReader(src)
+
+	hdrs := make(map[string]*tar.Header)
+	dirs := make(map[string]bool)
 
 	// Read entries and collect directories
 	for {
@@ -57,34 +62,64 @@ func Untar(src io.Reader, dst string, excl []string) error {
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(targetPath), os.ModePerm); err != nil {
-			return fmt.Errorf("error creating parrent directory for %s: %v", targetPath, err)
+		// Create parent directory
+		parentDir := filepath.Dir(targetPath)
+		if _, ok := dirs[parentDir]; !ok {
+			if err := os.MkdirAll(parentDir, os.ModePerm); err != nil {
+				return fmt.Errorf("error creating directory for %s: %v", parentDir, err)
+			}
+			dirs[parentDir] = true
 		}
 
 		switch hdr.Typeflag {
-		case tar.TypeDir:
-			if err := processDirs(hdr, targetPath); err != nil {
-				return err
-			}
 		case tar.TypeReg:
 			if err := processFiles(hdr, tr, targetPath); err != nil {
 				return err
 			}
-		case tar.TypeLink:
-			if err := processLinks(hdr, absDst, targetPath); err != nil {
-				return err
+		case tar.TypeDir:
+			if _, ok := dirs[targetPath]; !ok {
+				if err := os.MkdirAll(targetPath, hdr.FileInfo().Mode()); err != nil {
+					return fmt.Errorf("error creating directory for %s: %v", targetPath, err)
+				}
+				dirs[targetPath] = true
 			}
-		case tar.TypeSymlink:
-			if err := processSymlinks(hdr, targetPath); err != nil {
-				return err
-			}
-		case tar.TypeFifo:
-			if err := processSpecialFiles(hdr, targetPath); err != nil {
-				return err
-			}
+			hdrs[targetPath] = hdr
 		default:
-			continue
+			hdrs[targetPath] = hdr
 		}
+	}
+
+	numCPU := runtime.NumCPU()
+	sem := make(chan struct{}, numCPU)
+	var g errgroup.Group
+
+	for name, hdr := range hdrs {
+		name := name
+		hdr := hdr
+
+		sem <- struct{}{} // Acquire a semaphore slot
+
+		g.Go(func() error {
+			defer func() { <-sem }() // Release the semaphore slot
+
+			switch hdr.Typeflag {
+			case tar.TypeDir:
+				restorePerm(name, hdr)
+				return nil
+			case tar.TypeLink:
+				return processLinks(hdr, absDst, name)
+			case tar.TypeSymlink:
+				return processSymlinks(hdr, name)
+			case tar.TypeFifo:
+				return processSpecialFiles(hdr, name)
+			default:
+				return nil
+			}
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return err
 	}
 
 	return nil
@@ -109,19 +144,6 @@ func restorePerm(path string, info *tar.Header) {
 			logrus.Warnf("Error setting owner for %s: %v", path, err)
 		}
 	}
-}
-
-// processDirs processes directories from the archive.
-func processDirs(hdr *tar.Header, target string) error {
-	if err := os.MkdirAll(target, hdr.FileInfo().Mode()); err != nil {
-		return fmt.Errorf("error creating directory %s: %v", target, err)
-	}
-
-	restorePerm(target, hdr)
-
-	logrus.Tracef("Created directory: %s with permissions %v", target, hdr.Mode)
-
-	return nil
 }
 
 // processFiles processes regular files and special files like FIFOs.

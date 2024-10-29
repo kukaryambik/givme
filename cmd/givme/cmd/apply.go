@@ -58,6 +58,8 @@ func (opts *CommandOptions) apply() (*image.Image, error) {
 		return nil, fmt.Errorf("error getting config from image %s: %v", img, err)
 	}
 
+	logrus.Info("Image applied")
+
 	envs := util.PrepareEnv(cfg.Config.Env)
 	fmt.Printf("# Environment variables:\n%s\n", strings.Join(envs, "\n"))
 

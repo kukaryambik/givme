@@ -33,11 +33,11 @@ curl --version
 ```sh
 docker run --rm -it ghcr.io/kukaryambik/givme:latest
 
-source <(givme load alpine/helm)
+source <(givme apply alpine/helm)
 
 helm version
 
-source <(givme load docker)
+source <(givme apply docker)
 
 docker version
 ```
@@ -47,16 +47,16 @@ Or even like this:
 ```sh
 docker run --rm -it ghcr.io/kukaryambik/givme:latest
 
-source <(givme load alpine)
+source <(givme apply alpine)
 apk add --no-cache curl
 curl --version
 
 SNAP=$(givme snapshot)
 
-source <(givme load ubuntu)
+source <(givme apply ubuntu)
 apt
 
-source <(givme load $SNAP)
+source <(givme apply $SNAP)
 curl --version
 ```
 
@@ -65,9 +65,8 @@ curl --version
 #### Available Commands
 
 ```txt
-  cleanup     Clean up directories
-  help        Help about any command
-  load        Extract the container filesystem to the rootfs directory
+  apply       Extract the container filesystem to the rootfs directory
+  purge       Purge the rootfs directory
   run         Run a command in the container
   save        Save image to tar archive
   snapshot    Create a snapshot archive
@@ -86,39 +85,42 @@ curl --version
       --workdir string      Working directory; or use GIVME_WORKDIR (default "/givme/tmp")
 ```
 
-#### Cleanup
-
-```txt
-Clean up directories
-
-Usage:
-  givme cleanup [flags]
-
-Aliases:
-  cleanup, c, clean
-```
-
-#### Load
+#### Apply
 
 ```txt
 Extract the container filesystem to the rootfs directory
 
 Usage:
-  givme load [flags] IMAGE
+  givme apply [flags] IMAGE
 
 Aliases:
-  load, l, lo, loa
+  apply, a, an, the
 
 Examples:
-source <(givme load alpine)
+source <(givme apply alpine)
 
 Flags:
-      --cleanup                    Clean up root directory before load (default true)
-  -h, --help                       help for load
+  -h, --help                       help for apply
+      --no-purge                   Do not purge the root directory before unpacking the image
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
-      --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERAppName
-      --retry int                  Retry attempts of downloading the image; or use GIVME_RETRY
+      --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
+      --update                     Update the image instead of using existing file
+```
+
+#### Purge
+
+```txt
+Purge the rootfs directory
+
+Usage:
+  givme purge [flags]
+
+Aliases:
+  purge, p, clear
+
+Flags:
+  -h, --help   help for purge
 ```
 
 #### Run
@@ -134,15 +136,15 @@ Aliases:
 
 Flags:
   -u, --change-id string           UID:GID for the container (default "0:0")
-      --cleanup                    Clean up root directory before load (default true)
   -w, --cwd string                 Working directory for the container
       --entrypoint string          Entrypoint for the container
   -h, --help                       help for run
       --mount strings              Mount host path to the container
+      --no-purge                   Do not purge the root directory before unpacking the image
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
-      --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERAppName
-      --retry int                  Retry attempts of downloading the image; or use GIVME_RETRY
+      --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
+      --update                     Update the image instead of using existing file
 ```
 
 #### Save
@@ -161,8 +163,8 @@ Flags:
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
       --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
-      --retry int                  Retry attempts of downloading the image; or use GIVME_RETRY
   -f, --tar-file string            Path to the tar file
+      --update                     Update the image instead of using existing file
 ```
 
 #### Snapshot
@@ -176,19 +178,22 @@ Usage:
 Aliases:
   snapshot, snap
 
+Examples:
+SNAPSHOT=$(givme snap)
+
 Flags:
-  -h, --help                 help for snapshot
-  -f, --tar-file string      Path to the tar file
+  -h, --help              help for snapshot
+  -f, --tar-file string   Path to the tar file
 ```
 
 ## TODO
 
 - [x] Add volumes (in proot)
 - [x] Chroot (or something like this) as an option
-- [x] Retry for docker pull
+- [ ] Retry for docker pull (configure it more transparent)
 - [ ] TESTS!!!
 - [ ] Webserver to control it with API
-- [ ] Download and store images by layers
+- [x] Download and store images by layers (as cache)
 - [ ] Add list of allowed registries
 - [x] Save snapshot as an image
 - [ ] Add flag --add to snapshot to create a new layer

@@ -73,6 +73,8 @@ func mkFlags(c func(*cobra.Command), l ...*cobra.Command) {
 }
 
 func init() {
+	a := strings.ToUpper(AppName)
+
 	// Create default directories
 	for _, p := range []string{defaultImagesDir(), defaultLayersDir(), defaultCacheDir()} {
 		if err := os.MkdirAll(p, os.ModePerm); err != nil {
@@ -82,13 +84,13 @@ func init() {
 
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(
-		&opts.RootFS, "rootfs", "r", opts.RootFS, "RootFS directory; or use GIVME_ROOTFS")
+		&opts.RootFS, "rootfs", "r", opts.RootFS, fmt.Sprintf("RootFS directory; or use %s_ROOTFS", a))
 	rootCmd.MarkPersistentFlagDirname("rootfs")
 	rootCmd.PersistentFlags().StringVar(
-		&opts.Workdir, "workdir", opts.Workdir, "Working directory; or use GIVME_WORKDIR")
+		&opts.Workdir, "workdir", opts.Workdir, fmt.Sprintf("Working directory; or use %s_WORKDIR", a))
 	rootCmd.MarkPersistentFlagDirname("workdir")
 	rootCmd.PersistentFlags().StringSliceVarP(
-		&opts.IgnorePaths, "ignore", "i", nil, "Ignore these paths; or use GIVME_IGNORE")
+		&opts.IgnorePaths, "ignore", "i", nil, fmt.Sprintf("Ignore these paths; or use %s_IGNORE", a))
 
 	// Logging flags
 	rootCmd.PersistentFlags().StringVarP(
@@ -107,6 +109,24 @@ func init() {
 	},
 		// Add them to the list of subcommands
 		snapshotCmd, saveCmd,
+	)
+	// --retry and --registry-[mirror|username|password]
+	mkFlags(func(cmd *cobra.Command) {
+		cmd.Flags().StringVar(
+			&opts.RegistryMirror, "registry-mirror", opts.RegistryMirror,
+			fmt.Sprintf("Registry mirror; or use %s_REGISTRY_MIRROR", strings.ToUpper(AppName)),
+		)
+		cmd.Flags().StringVar(
+			&opts.RegistryUsername, "registry-username", opts.RegistryUsername,
+			fmt.Sprintf("Username for registry authentication; or use %s_REGISTRY_USERNAME", a),
+		)
+		cmd.Flags().StringVar(
+			&opts.RegistryPassword, "registry-password", opts.RegistryPassword,
+			fmt.Sprintf("Password for registry authentication; or use %s_REGISTRY_PASSWORD", a),
+		)
+	},
+		// Add them to the list of subcommands
+		saveCmd, applyCmd, runCmd,
 	)
 	// --update
 	mkFlags(func(cmd *cobra.Command) {

@@ -66,7 +66,7 @@ func Untar(src io.Reader, dst string, excl []string) error {
 		parentDir := filepath.Dir(targetPath)
 		if _, ok := dirs[parentDir]; !ok {
 			if err := os.MkdirAll(parentDir, os.ModePerm); err != nil {
-				return fmt.Errorf("error creating directory for %s: %v", parentDir, err)
+				return fmt.Errorf("error creating parent directory for %s: %v", targetPath, err)
 			}
 			dirs[parentDir] = true
 		}
@@ -79,7 +79,7 @@ func Untar(src io.Reader, dst string, excl []string) error {
 		case tar.TypeDir:
 			if _, ok := dirs[targetPath]; !ok {
 				if err := os.MkdirAll(targetPath, hdr.FileInfo().Mode()); err != nil {
-					return fmt.Errorf("error creating directory for %s: %v", targetPath, err)
+					return fmt.Errorf("error creating directory: %v", err)
 				}
 				dirs[targetPath] = true
 			}

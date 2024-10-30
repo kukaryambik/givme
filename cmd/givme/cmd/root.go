@@ -149,7 +149,7 @@ func init() {
 			&opts.Update, "update", opts.Update, "Update the image instead of using existing file")
 	},
 		// Add them to the list of subcommands
-		applyCmd, runCmd, saveCmd,
+		applyCmd, runCmd,
 	)
 	// --no-purge
 	mkFlags(func(cmd *cobra.Command) {
@@ -252,6 +252,7 @@ var saveCmd = &cobra.Command{
 	Short:   "Save image to tar archive",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
+		opts.Update = true
 		cmd.SilenceUsage = true
 		img, err := opts.save()
 		if err != nil {

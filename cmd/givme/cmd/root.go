@@ -29,6 +29,7 @@ type CommandOptions struct {
 	Cmd              []string
 	IgnorePaths      []string `mapstructure:"ignore"`
 	Image            string
+	IntactEnv        bool
 	LogFormat        string   `mapstructure:"log-format"`
 	LogLevel         string   `mapstructure:"log-level"`
 	LogTimestamp     bool     `mapstructure:"log-timestamp"`
@@ -125,7 +126,7 @@ func init() {
 		// Add them to the list of subcommands
 		snapshotCmd, saveCmd,
 	)
-	// --retry and --registry-[mirror|username|password]
+	// --registry-[mirror|username|password]
 	mkFlags(func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(
 			&opts.RegistryMirror, "registry-mirror", opts.RegistryMirror,
@@ -141,7 +142,7 @@ func init() {
 		)
 	},
 		// Add them to the list of subcommands
-		saveCmd, applyCmd, runCmd,
+		saveCmd, applyCmd, runCmd, getenvCmd,
 	)
 	// --update
 	mkFlags(func(cmd *cobra.Command) {
@@ -149,7 +150,7 @@ func init() {
 			&opts.Update, "update", opts.Update, "Update the image instead of using existing file")
 	},
 		// Add them to the list of subcommands
-		applyCmd, runCmd,
+		applyCmd, runCmd, getenvCmd,
 	)
 	// --no-purge
 	mkFlags(func(cmd *cobra.Command) {
@@ -158,6 +159,14 @@ func init() {
 	},
 		// Add them to the list of subcommands
 		applyCmd, runCmd,
+	)
+	// --intact-env
+	mkFlags(func(cmd *cobra.Command) {
+		cmd.Flags().BoolVar(
+			&opts.IntactEnv, "intact-env", opts.IntactEnv, "Keep intact environment variables instead of preparing them")
+	},
+		// Add them to the list of subcommands
+		applyCmd, getenvCmd,
 	)
 
 	runCmd.Flags().StringVar(
@@ -182,6 +191,7 @@ func init() {
 		purgeCmd,
 		applyCmd,
 		runCmd,
+		getenvCmd,
 		saveCmd,
 		snapshotCmd,
 		versionCmd,
@@ -259,6 +269,22 @@ var saveCmd = &cobra.Command{
 			fmt.Print("false")
 		}
 		fmt.Println(img.File)
+		return err
+	},
+}
+
+var getenvCmd = &cobra.Command{
+	Use:     "getenv [flags] IMAGE",
+	Aliases: []string{"e", "env"},
+	Short:   "Get environment variables from image",
+	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
+	RunE: func(cmd *cobra.Command, args []string) error {
+		opts.Image = args[0]
+		cmd.SilenceUsage = true
+		err := opts.getenv()
+		if err != nil {
+			fmt.Print("false")
+		}
 		return err
 	},
 }

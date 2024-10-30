@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/joho/godotenv"
 	"github.com/kukaryambik/givme/pkg/archiver"
 	"github.com/kukaryambik/givme/pkg/envars"
 	"github.com/kukaryambik/givme/pkg/image"
@@ -60,8 +61,14 @@ func (opts *CommandOptions) apply() (*image.Image, error) {
 
 	logrus.Info("Image applied")
 
-	envs := envars.PrepareEnv(defaultDotEnvFile(), opts.RedirectOutput, cfg.Config.Env)
-	fmt.Printf("# Environment variables:\n%s\n", strings.Join(envs, "\n"))
+	var env string
+	if opts.IntactEnv {
+		env, _ = godotenv.Marshal(envars.Split(cfg.Config.Env))
+	} else {
+		list := envars.PrepareEnv(defaultDotEnvFile(), opts.RedirectOutput, cfg.Config.Env)
+		env = strings.Join(list, "\n")
+	}
+	fmt.Printf("# Environment variables:\n%s\n", env)
 
 	return img, nil
 }

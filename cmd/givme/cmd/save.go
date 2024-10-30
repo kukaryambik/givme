@@ -27,6 +27,7 @@ func (opts *CommandOptions) save() (*image.Image, error) {
 		RegistryUsername: opts.RegistryUsername,
 		CacheDir:         defaultLayersDir(),
 		Update:           opts.Update,
+		Save:             true,
 	}
 
 	return img.Get()

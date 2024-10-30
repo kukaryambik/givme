@@ -2,38 +2,40 @@ package cmd
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/kukaryambik/givme/pkg/envars"
 	"github.com/kukaryambik/givme/pkg/image"
-	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/sirupsen/logrus"
 )
 
 func (opts *CommandOptions) getenv() error {
+	logrus.Infof("Loading image for %s", opts.Image)
 
-	var (
-		img *image.Image
-		err error
-	)
-	if paths.FileExists(opts.Image) {
-		img, err = image.Load(opts.Image)
-		if err != nil {
-			return err
-		}
-	} else {
-		imgConf := &image.GetConf{
-			Image:            opts.Image,
-			RegistryMirror:   opts.RegistryMirror,
-			RegistryPassword: opts.RegistryPassword,
-			RegistryUsername: opts.RegistryUsername,
-			CacheDir:         defaultLayersDir(),
-		}
-		img, err = imgConf.Pull()
-		if err != nil {
-			return err
-		}
+	imageSlug, err := image.GetNameSlug(opts.Image)
+	if err != nil {
+		return err
+	}
+	if opts.TarFile == "" {
+		opts.TarFile = filepath.Join(defaultImagesDir(), imageSlug+".tar")
+	}
+
+	conf := &image.GetConf{
+		File:             opts.TarFile,
+		Image:            opts.Image,
+		RegistryMirror:   opts.RegistryMirror,
+		RegistryPassword: opts.RegistryPassword,
+		RegistryUsername: opts.RegistryUsername,
+		CacheDir:         defaultLayersDir(),
+		Update:           opts.Update,
+		Save:             false,
+	}
+
+	img, err := conf.Get()
+	if err != nil {
+		return err
 	}
 
 	logrus.Info("Fetching config")

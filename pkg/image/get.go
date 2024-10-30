@@ -22,6 +22,7 @@ type GetConf struct {
 	RegistryUsername string
 	CacheDir         string
 	Update           bool
+	Save             bool
 }
 
 // Load loads the image from a tarball.
@@ -125,6 +126,9 @@ func (conf *GetConf) Get() (*Image, error) {
 		i, err := conf.Pull()
 		if err != nil {
 			return nil, err
+		}
+		if !conf.Save {
+			return i, nil
 		}
 		if err := i.Save(conf.File); err != nil {
 			return nil, err

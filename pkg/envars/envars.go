@@ -88,7 +88,7 @@ func PrepareEnv(file string, overwrite bool, env []string) []string {
 		finalEnv = append(finalEnv, fmt.Sprintf("export %s=%s", k, strconv.Quote(v)))
 	}
 
-	logrus.Debugf("Environment variables: %s", env)
+	logrus.Debugf("Final environment variables: %s", finalEnv)
 	return finalEnv
 }
 

@@ -38,10 +38,11 @@ type CommandOptions struct {
 	ProotFlags       []string `mapstructure:"proot-flags"`
 	ProotMounts      []string `mapstructure:"mount"`
 	ProotUser        string   `mapstructure:"change-id"`
-	RegistryMirror   string   `mapstructure:"registry-mirror"`
-	RegistryPassword string   `mapstructure:"registry-password"`
-	RegistryUsername string   `mapstructure:"registry-username"`
-	RootFS           string   `mapstructure:"rootfs"`
+	RedirectOutput   bool
+	RegistryMirror   string `mapstructure:"registry-mirror"`
+	RegistryPassword string `mapstructure:"registry-password"`
+	RegistryUsername string `mapstructure:"registry-username"`
+	RootFS           string `mapstructure:"rootfs"`
 	TarFile          string
 	Update           bool   `mapstructure:"update"`
 	Workdir          string `mapstructure:"workdir"`
@@ -56,9 +57,12 @@ var opts = &CommandOptions{
 	Workdir:   filepath.Join(util.GetExecDir(), "tmp"),
 }
 
-var defaultImagesDir = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "images") })
-var defaultLayersDir = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "layers") })
-var defaultCacheDir = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "cache") })
+var (
+	defaultImagesDir  = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "images") })
+	defaultLayersDir  = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "layers") })
+	defaultCacheDir   = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "cache") })
+	defaultDotEnvFile = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, ".env") })
+)
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
@@ -73,6 +77,17 @@ func mkFlags(c func(*cobra.Command), l ...*cobra.Command) {
 }
 
 func init() {
+
+	fileInfo, err := os.Stdout.Stat()
+	if err != nil {
+		logrus.Warnf("Failed to stat Stdout: %v", err)
+	}
+
+	if (fileInfo.Mode() & os.ModeCharDevice) == 0 {
+		opts.RedirectOutput = true
+		logrus.Debugf("Stdout is not a terminal")
+	}
+
 	a := strings.ToUpper(AppName)
 
 	// Create default directories

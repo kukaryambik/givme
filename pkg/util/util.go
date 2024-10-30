@@ -1,20 +1,18 @@
 package util
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"slices"
-	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
 
 // GetExecDir returns the directory of the current executable.
-var GetExecDir = func() string {
+var GetExecDir = sync.OnceValue(func() string {
 	exe, err := os.Executable()
 	if err != nil {
 		exe = "."
@@ -26,27 +24,7 @@ var GetExecDir = func() string {
 		return dir
 	}
 	return absDir
-}
-
-func PrepareEnv(env []string) []string {
-	// Add the current exec directory to PATH
-	path := slices.IndexFunc(env, func(s string) bool {
-		return strings.HasPrefix(s, "PATH=")
-	})
-	logrus.Debugf("PATH index: %d", path)
-	if path != -1 {
-		env[path] = env[path] + ":" + GetExecDir()
-	}
-
-	// Format environment variables for export
-	for n, e := range env {
-		kv := strings.SplitN(e, "=", 2)
-		env[n] = fmt.Sprintf("export %s=%s", kv[0], strconv.Quote(kv[1]))
-	}
-
-	logrus.Debugf("Environments variables: %s", env)
-	return env
-}
+})
 
 func Coalesce[T any](vals ...T) T {
 	var zero T

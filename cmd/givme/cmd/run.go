@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/kukaryambik/givme/pkg/archiver"
+	"github.com/kukaryambik/givme/pkg/envars"
 	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/kukaryambik/givme/pkg/proot"
@@ -77,13 +78,15 @@ func (opts *CommandOptions) run() error {
 	}
 	cfg := imgConf.Config
 
+	env := envars.AddToPath(cfg.Env, util.GetExecDir())
+
 	// Create the proot command
 	prootConf := proot.ProotConf{
 		BinPath:    filepath.Join(util.GetExecDir(), "proot"),
 		RootFS:     opts.RootFS,
 		ChangeID:   util.Coalesce(opts.ProotUser, cfg.User, "0:0"),
 		Workdir:    util.Coalesce(opts.ProotCwd, cfg.WorkingDir, "/"),
-		Env:        util.PrepareEnv(cfg.Env),
+		Env:        slices.Concat(os.Environ(), env),
 		ExtraFlags: opts.ProotFlags,
 		MixedMode:  true,
 		TmpDir:     opts.Workdir,

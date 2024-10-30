@@ -127,20 +127,16 @@ func Untar(src io.Reader, dst string, excl []string) error {
 
 // restorePerm restores the permissions of a file or directory
 func restorePerm(path string, info *tar.Header) {
-	if !paths.FileExists(path) {
-		return
-	}
-
-	if err := os.Chmod(path, info.FileInfo().Mode()); err != nil {
+	if err := os.Chmod(path, info.FileInfo().Mode()); err != nil && !os.IsNotExist(err) {
 		logrus.Warnf("Error setting permissions for %s: %v", path, err)
 	}
 
-	if err := os.Chtimes(path, info.AccessTime, info.ModTime); err != nil {
+	if err := os.Chtimes(path, info.AccessTime, info.ModTime); err != nil && !os.IsNotExist(err) {
 		logrus.Warnf("Error setting times for %s: %v", path, err)
 	}
 
 	if Chown {
-		if err := os.Chown(path, info.Uid, info.Gid); err != nil {
+		if err := os.Chown(path, info.Uid, info.Gid); err != nil && !os.IsNotExist(err) {
 			logrus.Warnf("Error setting owner for %s: %v", path, err)
 		}
 	}

@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 // GetList recursively lists files and directories, excluding specified paths.
@@ -33,7 +35,7 @@ func GetList(path string, ignore []string, lst *[]string) error {
 
 	// Check if the path should be ignored using util.PathFrom
 	if PathFrom(absPath, absExclude) {
-		logrus.Debugf("Path %s is ignored by PathFrom", absPath)
+		logrus.Tracef("Path %s is ignored by PathFrom", absPath)
 		return nil
 	}
 
@@ -49,19 +51,36 @@ func GetList(path string, ignore []string, lst *[]string) error {
 		}
 
 		// Recursively process the contents of the directory
+		numCPU := runtime.NumCPU()
+		sem := make(chan struct{}, numCPU)
+		var g errgroup.Group
+
 		for _, entry := range entries {
-			logrus.Tracef("Recursively processing entry %s in directory %s",
-				entry.Name(), absPath)
-			if err := GetList(
-				filepath.Join(absPath, entry.Name()),
-				absExclude, lst,
-			); err != nil {
-				return err
-			}
+
+			sem <- struct{}{} // Acquire a semaphore slot
+
+			g.Go(func() error {
+				defer func() { <-sem }() // Release the semaphore slot
+
+				logrus.Tracef("Recursively processing entry %s in directory %s",
+					entry.Name(), absPath)
+				if err := GetList(
+					filepath.Join(absPath, entry.Name()),
+					absExclude, lst,
+				); err != nil {
+					return err
+				}
+				return nil
+			})
 		}
+
+		if err := g.Wait(); err != nil {
+			return err
+		}
+
 	} else {
 		// Add the file path to the list
-		logrus.Debugf("Adding path %s to the list", absPath)
+		logrus.Tracef("Adding path %s to the list", absPath)
 		*lst = append(*lst, absPath)
 	}
 

@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/kukaryambik/givme/pkg/archiver"
+	"github.com/kukaryambik/givme/pkg/envars"
 	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/kukaryambik/givme/pkg/paths"
-	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -60,7 +60,7 @@ func (opts *CommandOptions) apply() (*image.Image, error) {
 
 	logrus.Info("Image applied")
 
-	envs := util.PrepareEnv(cfg.Config.Env)
+	envs := envars.PrepareEnv(defaultDotEnvFile(), opts.RedirectOutput, cfg.Config.Env)
 	fmt.Printf("# Environment variables:\n%s\n", strings.Join(envs, "\n"))
 
 	return img, nil

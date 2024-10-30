@@ -150,7 +150,7 @@ func init() {
 			&opts.Update, "update", opts.Update, "Update the image instead of using existing file")
 	},
 		// Add them to the list of subcommands
-		applyCmd, runCmd, getenvCmd,
+		applyCmd, runCmd,
 	)
 	// --no-purge
 	mkFlags(func(cmd *cobra.Command) {

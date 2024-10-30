@@ -101,11 +101,31 @@ source <(givme apply alpine)
 
 Flags:
   -h, --help                       help for apply
+      --intact-env                 Keep intact environment variables instead of preparing them
       --no-purge                   Do not purge the root directory before unpacking the image
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
       --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
       --update                     Update the image instead of using existing file
+```
+
+#### Getenv
+
+```txt
+Get environment variables from image
+
+Usage:
+  givme getenv [flags] IMAGE
+
+Aliases:
+  getenv, e, env
+
+Flags:
+  -h, --help                       help for getenv
+      --intact-env                 Keep intact environment variables instead of preparing them
+      --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
+      --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
+      --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
 ```
 
 #### Purge

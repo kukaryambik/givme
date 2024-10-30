@@ -160,14 +160,9 @@ func init() {
 		// Add them to the list of subcommands
 		applyCmd, runCmd,
 	)
-	// --intact-env
-	mkFlags(func(cmd *cobra.Command) {
-		cmd.Flags().BoolVar(
-			&opts.IntactEnv, "intact-env", opts.IntactEnv, "Keep intact environment variables instead of preparing them")
-	},
-		// Add them to the list of subcommands
-		applyCmd, getenvCmd,
-	)
+
+	getenvCmd.Flags().BoolVar(
+		&opts.IntactEnv, "intact", opts.IntactEnv, "Keep intact environment variables instead of preparing them")
 
 	runCmd.Flags().StringVar(
 		&opts.ProotEntrypoint, "entrypoint", opts.ProotEntrypoint, "Entrypoint for the container")

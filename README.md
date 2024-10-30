@@ -1,8 +1,8 @@
 # Givme
 
-![Go Report Card](https://goreportcard.com/badge/github.com/kukaryambik/givme)
-![Build Status](https://img.shields.io/github/actions/workflow/status/kukaryambik/givme/docker-publish.yml)
-![License](https://img.shields.io/github/license/kukaryambik/givme)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kukaryambik/givme)](https://goreportcard.com/report/github.com/kukaryambik/givme)
+[![Build Status](https://github.com/kukaryambik/givme/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/kukaryambik/givme/actions/workflows/docker-publish.yml)
+[![License](https://img.shields.io/github/license/kukaryambik/givme)](/LICENSE)
 
 _«Givme, givme more, givme more, givme, givme more!»_
 
@@ -101,7 +101,6 @@ source <(givme apply alpine)
 
 Flags:
   -h, --help                       help for apply
-      --intact-env                 Keep intact environment variables instead of preparing them
       --no-purge                   Do not purge the root directory before unpacking the image
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
@@ -122,7 +121,7 @@ Aliases:
 
 Flags:
   -h, --help                       help for getenv
-      --intact-env                 Keep intact environment variables instead of preparing them
+      --intact                     Keep intact environment variables instead of preparing them
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
       --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME

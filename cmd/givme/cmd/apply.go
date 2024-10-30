@@ -61,14 +61,16 @@ func (opts *CommandOptions) apply() (*image.Image, error) {
 
 	logrus.Info("Image applied")
 
-	var env string
-	if opts.IntactEnv {
-		env, _ = godotenv.Marshal(envars.Split(cfg.Config.Env))
-	} else {
-		list := envars.PrepareEnv(defaultDotEnvFile(), opts.RedirectOutput, cfg.Config.Env)
-		env = strings.Join(list, "\n")
+	if opts.RedirectOutput {
+		var env string
+		if opts.IntactEnv {
+			env, _ = godotenv.Marshal(envars.Split(cfg.Config.Env))
+		} else {
+			list := envars.PrepareEnv(defaultDotEnvFile(), true, cfg.Config.Env)
+			env = strings.Join(list, "\n")
+		}
+		fmt.Println(env)
 	}
-	fmt.Printf("# Environment variables:\n%s\n", env)
 
 	return img, nil
 }

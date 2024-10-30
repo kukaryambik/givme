@@ -86,7 +86,7 @@ func init() {
 
 	if (fileInfo.Mode() & os.ModeCharDevice) == 0 {
 		opts.RedirectOutput = true
-		logrus.Debugf("Stdout is not a terminal")
+		logrus.Debug("Stdout is not a terminal")
 	}
 
 	a := strings.ToUpper(AppName)

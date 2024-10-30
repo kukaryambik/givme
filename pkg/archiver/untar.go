@@ -165,8 +165,8 @@ func processFiles(hdr *tar.Header, src *tar.Reader, target string) error {
 }
 
 // processLinks processes hard links from the archive.
-func processLinks(hdr *tar.Header, relRootfs, target string) error {
-	linkTargetPath := filepath.Join(relRootfs, hdr.Linkname)
+func processLinks(hdr *tar.Header, rootfs, target string) error {
+	linkTargetPath := filepath.Join(rootfs, hdr.Linkname)
 	logrus.Tracef("Creating hard link: %s -> %s", target, linkTargetPath)
 	if err := os.RemoveAll(target); err != nil {
 		return fmt.Errorf("error removing existing file %s: %v", target, err)

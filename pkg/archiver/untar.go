@@ -71,6 +71,8 @@ func Untar(src io.Reader, dst string, excl []string) error {
 			dirs[parentDir] = true
 		}
 
+		hdrs[targetPath] = hdr
+
 		switch hdr.Typeflag {
 		case tar.TypeReg:
 			if err := processFiles(hdr, tr, targetPath); err != nil {
@@ -83,9 +85,6 @@ func Untar(src io.Reader, dst string, excl []string) error {
 				}
 				dirs[targetPath] = true
 			}
-			hdrs[targetPath] = hdr
-		default:
-			hdrs[targetPath] = hdr
 		}
 	}
 
@@ -104,6 +103,9 @@ func Untar(src io.Reader, dst string, excl []string) error {
 
 			switch hdr.Typeflag {
 			case tar.TypeDir:
+				restorePerm(name, hdr)
+				return nil
+			case tar.TypeReg:
 				restorePerm(name, hdr)
 				return nil
 			case tar.TypeLink:
@@ -145,6 +147,17 @@ func restorePerm(path string, info *tar.Header) {
 // processFiles processes regular files and special files like FIFOs.
 func processFiles(hdr *tar.Header, src *tar.Reader, target string) error {
 
+	if info, err := os.Stat(target); err == nil {
+		// Check if the file already exists
+		if info.Size() == hdr.Size && info.ModTime().Equal(hdr.ModTime) {
+			logrus.Tracef("Skipping existing file: %s", target)
+			if _, err := io.Copy(io.Discard, src); err != nil {
+				return fmt.Errorf("error skipping file %s: %v", target, err)
+			}
+			return nil
+		}
+	}
+
 	outFile, err := os.OpenFile(target, os.O_RDWR|os.O_CREATE|os.O_TRUNC, hdr.FileInfo().Mode())
 	if err != nil {
 		return fmt.Errorf("error creating file %s: %v", target, err)
@@ -156,8 +169,6 @@ func processFiles(hdr *tar.Header, src *tar.Reader, target string) error {
 		return fmt.Errorf("error writing file %s: %v", target, err)
 	}
 	outFile.Close()
-
-	restorePerm(target, hdr)
 
 	logrus.Tracef("Extracted file: %s", target)
 

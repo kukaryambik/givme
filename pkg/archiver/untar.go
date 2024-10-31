@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"syscall"
 
 	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/sirupsen/logrus"
@@ -33,7 +32,7 @@ func Untar(src io.Reader, dst string, excl []string) error {
 
 	tr := tar.NewReader(src)
 
-	hdrs := make(map[string]*tar.Header)
+	hdrs := make(map[string]tar.Header)
 	dirs := make(map[string]bool)
 
 	// Read entries and collect directories
@@ -71,7 +70,7 @@ func Untar(src io.Reader, dst string, excl []string) error {
 			dirs[parentDir] = true
 		}
 
-		hdrs[targetPath] = hdr
+		hdrs[targetPath] = *hdr
 
 		switch hdr.Typeflag {
 		case tar.TypeReg:
@@ -103,17 +102,15 @@ func Untar(src io.Reader, dst string, excl []string) error {
 
 			switch hdr.Typeflag {
 			case tar.TypeDir:
-				restorePerm(name, hdr)
+				restorePerm(name, &hdr)
 				return nil
 			case tar.TypeReg:
-				restorePerm(name, hdr)
+				restorePerm(name, &hdr)
 				return nil
 			case tar.TypeLink:
-				return processLinks(hdr, absDst, name)
+				return processLinks(&hdr, absDst, name)
 			case tar.TypeSymlink:
-				return processSymlinks(hdr, name)
-			case tar.TypeFifo:
-				return processSpecialFiles(hdr, name)
+				return processSymlinks(&hdr, name)
 			default:
 				return nil
 			}
@@ -144,7 +141,7 @@ func restorePerm(path string, info *tar.Header) {
 	}
 }
 
-// processFiles processes regular files and special files like FIFOs.
+// processFiles processes regular files from the archive
 func processFiles(hdr *tar.Header, src *tar.Reader, target string) error {
 
 	if info, err := os.Stat(target); err == nil {
@@ -175,7 +172,7 @@ func processFiles(hdr *tar.Header, src *tar.Reader, target string) error {
 	return nil
 }
 
-// processLinks processes hard links from the archive.
+// processLinks processes hard links from the archive
 func processLinks(hdr *tar.Header, rootfs, target string) error {
 	linkTargetPath := filepath.Join(rootfs, hdr.Linkname)
 	logrus.Tracef("Creating hard link: %s -> %s", target, linkTargetPath)
@@ -191,7 +188,7 @@ func processLinks(hdr *tar.Header, rootfs, target string) error {
 	return nil
 }
 
-// processSymlinks processes symbolic links from the archive.
+// processSymlinks processes symbolic links from the archive
 func processSymlinks(hdr *tar.Header, target string) error {
 	logrus.Tracef("Creating symbolic link: %s -> %s", target, hdr.Linkname)
 	if err := os.RemoveAll(target); err != nil {
@@ -202,18 +199,6 @@ func processSymlinks(hdr *tar.Header, target string) error {
 	}
 
 	logrus.Tracef("Created link: %s -> %s", target, hdr.Linkname)
-
-	return nil
-}
-
-// processSpecialFiles handles special files like FIFOs during extraction.
-func processSpecialFiles(hdr *tar.Header, target string) error {
-	err := syscall.Mkfifo(target, uint32(hdr.FileInfo().Mode()))
-	if err != nil {
-		return fmt.Errorf("error creating FIFO %s: %v", target, err)
-	}
-	restorePerm(target, hdr)
-	logrus.Tracef("Created FIFO: %s", target)
 
 	return nil
 }

@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
+	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/joho/godotenv"
 	"github.com/kukaryambik/givme/pkg/archiver"
 	"github.com/kukaryambik/givme/pkg/envars"
@@ -36,21 +38,18 @@ func (opts *CommandOptions) apply() (*image.Image, error) {
 
 	logrus.Infof("Extracting filesystem to '%s'", opts.RootFS)
 
-	layers, err := img.Image.Layers()
-	if err != nil {
+	// Untar the filesystem
+	reader, writer := io.Pipe()
+	go func() {
+		if err := crane.Export(img.Image, writer); err != nil {
+			writer.CloseWithError(err)
+			return
+		}
+		writer.Close()
+	}()
+
+	if err := archiver.Untar(reader, opts.RootFS, ignores); err != nil {
 		return nil, err
-	}
-	for _, layer := range layers {
-		uncompressed, err := layer.Uncompressed()
-		if err != nil {
-			return nil, err
-		}
-		if err := archiver.Untar(uncompressed, opts.RootFS, ignores); err != nil {
-			return nil, err
-		}
-		if err := uncompressed.Close(); err != nil {
-			return nil, err
-		}
 	}
 
 	logrus.Debugf("Fetching config file for image %s", img.Name)

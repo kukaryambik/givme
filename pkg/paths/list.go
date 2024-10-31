@@ -56,6 +56,7 @@ func GetList(path string, ignore []string, lst *[]string) error {
 		var g errgroup.Group
 
 		for _, entry := range entries {
+			entry := entry
 
 			sem <- struct{}{} // Acquire a semaphore slot
 

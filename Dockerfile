@@ -80,7 +80,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # Final stage: Build the scratch-based image
 FROM scratch AS main
 
-ENV PATH="/bin:/givme:/givme/busybox" \
+ENV PATH="/givme:/givme/busybox" \
     HOME="/givme" \
     USER="root" \
     SSL_CERT_DIR="/givme/certs"

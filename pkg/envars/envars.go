@@ -3,6 +3,7 @@ package envars
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
@@ -65,7 +66,7 @@ func PrepareEnv(file string, overwrite bool, env []string) []string {
 	// They need to be cleared
 	for k := range duplicatesMap {
 		if !slices.Contains(defaultKeepEnv, k) {
-			finalEnv = append(finalEnv, fmt.Sprintf("unset %s", k))
+			finalEnv = append(finalEnv, fmt.Sprintf("unset %s ;", k))
 		}
 	}
 
@@ -77,18 +78,25 @@ func PrepareEnv(file string, overwrite bool, env []string) []string {
 	uniqMap := UniqKeys(newMap, currentWithoutDuplicates)
 	logrus.Debugf("UniqMap variables: %s", uniqMap)
 
-	// Add PATH
+	// Update PATH and Shell
+	var shell string
 	if _, exists := newMap["PATH"]; exists {
+		// Change shell
+		os.Setenv("PATH", newMap["PATH"])
+		which := func(s string) string { b, _ := exec.LookPath(s); return b }
+		shell = util.Coalesce(which("bash"), which("sh"))
+
 		uniqMap["PATH"] = newMap["PATH"] + ":" + util.GetExecDir()
 		logrus.Debugf("PATH is %s", uniqMap["PATH"])
 	}
 
 	// Compile the list of new variables
 	for k, v := range uniqMap {
-		finalEnv = append(finalEnv, fmt.Sprintf("export %s=%s", k, strconv.Quote(v)))
+		finalEnv = append(finalEnv, fmt.Sprintf("export %s=%s", k, strconv.Quote(v)+";"))
 	}
 
 	logrus.Debugf("Final environment variables: %s", finalEnv)
+	finalEnv = append(finalEnv, "exec "+shell)
 	return finalEnv
 }
 

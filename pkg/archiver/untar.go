@@ -33,7 +33,7 @@ func Untar(src io.Reader, dst string, excl []string) error {
 	tr := tar.NewReader(src)
 
 	hdrs := make(map[string]tar.Header)
-	dirs := make(map[string]bool)
+	var dirs []string
 
 	// Read entries and collect directories
 	for {
@@ -61,28 +61,23 @@ func Untar(src io.Reader, dst string, excl []string) error {
 			continue
 		}
 
-		// Create parent directory
-		parentDir := filepath.Dir(targetPath)
-		if _, ok := dirs[parentDir]; !ok {
-			if err := os.MkdirAll(parentDir, os.ModePerm); err != nil {
+		// Create directories
+		d := filepath.Dir(targetPath)
+		if hdr.Typeflag == tar.TypeDir {
+			d = targetPath
+		}
+		if !paths.PathContains(d, dirs) {
+			if err := os.MkdirAll(d, os.ModePerm); err != nil {
 				return fmt.Errorf("error creating parent directory for %s: %v", targetPath, err)
 			}
-			dirs[parentDir] = true
+			dirs = append(dirs, d)
 		}
 
 		hdrs[targetPath] = *hdr
 
-		switch hdr.Typeflag {
-		case tar.TypeReg:
+		if hdr.Typeflag == tar.TypeReg {
 			if err := processFiles(hdr, tr, targetPath); err != nil {
 				return err
-			}
-		case tar.TypeDir:
-			if _, ok := dirs[targetPath]; !ok {
-				if err := os.MkdirAll(targetPath, hdr.FileInfo().Mode()); err != nil {
-					return fmt.Errorf("error creating directory: %v", err)
-				}
-				dirs[targetPath] = true
 			}
 		}
 	}

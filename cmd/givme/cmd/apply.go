@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"syscall"
 
 	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/joho/godotenv"
 	"github.com/kukaryambik/givme/pkg/archiver"
 	"github.com/kukaryambik/givme/pkg/envars"
 	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/kukaryambik/givme/pkg/paths"
+	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -58,17 +59,37 @@ func (opts *CommandOptions) apply() (*image.Image, error) {
 		return nil, fmt.Errorf("error getting config from image %s: %v", img, err)
 	}
 
+	// Prepare environment variables
+	env, err := envars.PrepareEnv(defaultDotEnvFile(), true, opts.OverwriteEnv, cfg.Config.Env)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare the command to run in the new rootfs
+	var shell []string
+	switch {
+	case opts.Shell != "":
+		w, err := envars.Which(env, opts.Shell)
+		if err != nil {
+			return nil, err
+		}
+		shell = []string{w, "-c"}
+	case len(cfg.Config.Shell) > 0:
+		shell = cfg.Config.Shell
+	default:
+		w, err := envars.CoalesceWhich(env, "bash", "sh")
+		if err != nil {
+			return nil, err
+		}
+		shell = []string{w, "-c"}
+	}
+
 	logrus.Info("Image applied")
 
-	if opts.RedirectOutput {
-		var env string
-		if opts.IntactEnv {
-			env, _ = godotenv.Marshal(envars.Split(cfg.Config.Env))
-		} else {
-			list := envars.PrepareEnv(defaultDotEnvFile(), true, cfg.Config.Env)
-			env = strings.Join(list, "\n")
-		}
-		fmt.Println(env)
+	opts.Cmd = util.CleanList(opts.Cmd)
+	cmd := util.Coalesce(strings.Join(opts.Cmd, " "), shell[0])
+	if err := syscall.Exec(shell[0], append(shell, cmd), env); err != nil {
+		return nil, err
 	}
 
 	return img, nil

@@ -18,6 +18,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var defaultShell = []string{"/bin/sh", "-c"}
+
 func (opts *CommandOptions) run() error {
 
 	// Get the image
@@ -76,7 +78,10 @@ func (opts *CommandOptions) run() error {
 	}
 	cfg := imgConf.Config
 
-	env := envars.AddToPath(cfg.Env, util.GetExecDir())
+	env, err := envars.PrepareEnv(defaultDotEnvFile(), false, opts.OverwriteEnv, cfg.Env)
+	if err != nil {
+		return err
+	}
 
 	// Create the proot command
 	prootConf := proot.ProotConf{
@@ -84,7 +89,7 @@ func (opts *CommandOptions) run() error {
 		RootFS:     opts.RootFS,
 		ChangeID:   util.Coalesce(opts.ProotUser, cfg.User, "0:0"),
 		Workdir:    util.Coalesce(opts.ProotCwd, cfg.WorkingDir, "/"),
-		Env:        slices.Concat(os.Environ(), env),
+		Env:        env,
 		ExtraFlags: opts.ProotFlags,
 		MixedMode:  true,
 		TmpDir:     opts.Workdir,
@@ -104,24 +109,26 @@ func (opts *CommandOptions) run() error {
 	}
 
 	// add command
-	prootConf.Command = slices.Concat(
-		cfg.Shell,
-		util.Coalesce([]string{opts.ProotEntrypoint}, cfg.Entrypoint),
-		util.Coalesce(opts.Cmd, cfg.Cmd),
-	)
+	var shell []string
+	switch {
+	case opts.Shell != "":
+		shell = append(shell, opts.Shell, "-c")
+	case len(cfg.Shell) > 0:
+		shell = cfg.Shell
+	default:
+		shell = defaultShell
+	}
+	command := util.Coalesce(util.CleanList(opts.Cmd), []string{shell[0]})
+	prootConf.Command = append(shell, command...)
 
 	// Create the proot command and run it
 	cmd := prootConf.Cmd()
 	logrus.Debug(cmd.Args)
 
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-	cmd.Stdin = os.Stdin
-
 	logrus.Info("Running proot")
 
 	// Run the command
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Exec(); err != nil {
 		return fmt.Errorf("error running proot: %v", err)
 	}
 

@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/kukaryambik/givme/pkg/logging"
-	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -29,21 +28,20 @@ type CommandOptions struct {
 	Cmd              []string
 	IgnorePaths      []string `mapstructure:"ignore"`
 	Image            string
-	IntactEnv        bool
 	LogFormat        string   `mapstructure:"log-format"`
 	LogLevel         string   `mapstructure:"log-level"`
 	LogTimestamp     bool     `mapstructure:"log-timestamp"`
 	NoPurge          bool     `mapstructure:"no-purge"`
+	OverwriteEnv     bool     `mapstructure:"overwrite-env"`
 	ProotCwd         string   `mapstructure:"cwd"`
-	ProotEntrypoint  string   `mapstructure:"entrypoint"`
 	ProotFlags       []string `mapstructure:"proot-flags"`
 	ProotMounts      []string `mapstructure:"mount"`
 	ProotUser        string   `mapstructure:"change-id"`
-	RedirectOutput   bool
-	RegistryMirror   string `mapstructure:"registry-mirror"`
-	RegistryPassword string `mapstructure:"registry-password"`
-	RegistryUsername string `mapstructure:"registry-username"`
-	RootFS           string `mapstructure:"rootfs"`
+	RegistryMirror   string   `mapstructure:"registry-mirror"`
+	RegistryPassword string   `mapstructure:"registry-password"`
+	RegistryUsername string   `mapstructure:"registry-username"`
+	RootFS           string   `mapstructure:"rootfs"`
+	Shell            string   `mapstructure:"shell"`
 	TarFile          string
 	Update           bool   `mapstructure:"update"`
 	Workdir          string `mapstructure:"workdir"`
@@ -55,14 +53,14 @@ var opts = &CommandOptions{
 	LogLevel:  logging.DefaultLevel,
 	ProotUser: "0:0",
 	RootFS:    "/",
-	Workdir:   filepath.Join(util.GetExecDir(), "tmp"),
+	Workdir:   filepath.Join("/tmp", AppName),
 }
 
 var (
 	defaultImagesDir  = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "images") })
 	defaultLayersDir  = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "layers") })
 	defaultCacheDir   = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "cache") })
-	defaultDotEnvFile = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, ".env") })
+	defaultDotEnvFile = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "last.env") })
 )
 
 func Execute() {
@@ -78,17 +76,6 @@ func mkFlags(c func(*cobra.Command), l ...*cobra.Command) {
 }
 
 func init() {
-
-	fileInfo, err := os.Stdout.Stat()
-	if err != nil {
-		logrus.Warnf("Failed to stat Stdout: %v", err)
-	}
-
-	if (fileInfo.Mode() & os.ModeCharDevice) == 0 {
-		opts.RedirectOutput = true
-		logrus.Debug("Stdout is not a terminal")
-	}
-
 	a := strings.ToUpper(AppName)
 
 	// Create default directories
@@ -160,12 +147,23 @@ func init() {
 		// Add them to the list of subcommands
 		applyCmd, runCmd,
 	)
+	// --overwrite-env
+	mkFlags(func(cmd *cobra.Command) {
+		cmd.Flags().BoolVar(
+			&opts.OverwriteEnv, "overwrite-env", opts.OverwriteEnv, "Overwrite current environment variables with new ones from the image")
+	},
+		// Add them to the list of subcommands
+		applyCmd, runCmd,
+	)
+	// --shell
+	mkFlags(func(cmd *cobra.Command) {
+		cmd.Flags().StringVar(
+			&opts.Shell, "shell", opts.Shell, "Shell to use for the container")
+	},
+		// Add them to the list of subcommands
+		applyCmd, runCmd,
+	)
 
-	getenvCmd.Flags().BoolVar(
-		&opts.IntactEnv, "intact", opts.IntactEnv, "Keep intact environment variables instead of preparing them")
-
-	runCmd.Flags().StringVar(
-		&opts.ProotEntrypoint, "entrypoint", opts.ProotEntrypoint, "Entrypoint for the container")
 	runCmd.Flags().StringVarP(
 		&opts.ProotCwd, "cwd", "w", opts.ProotCwd, "Working directory for the container")
 	runCmd.Flags().StringSliceVar(
@@ -260,9 +258,6 @@ var saveCmd = &cobra.Command{
 		opts.Update = true
 		cmd.SilenceUsage = true
 		img, err := opts.save()
-		if err != nil {
-			fmt.Print("false")
-		}
 		fmt.Println(img.File)
 		return err
 	},
@@ -276,27 +271,21 @@ var getenvCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
 		cmd.SilenceUsage = true
-		err := opts.getenv()
-		if err != nil {
-			fmt.Print("false")
-		}
-		return err
+		return opts.getenv()
 	},
 }
 
 var applyCmd = &cobra.Command{
-	Use:     "apply [flags] IMAGE",
-	Aliases: []string{"a", "an", "the"},
-	Example: fmt.Sprintf("source <(%s apply alpine)", AppName),
-	Short:   "Extract the container filesystem to the rootfs directory",
-	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
+	Use:     "apply [flags] IMAGE [cmd]...",
+	Aliases: []string{"a", "an", "the", "load", "l"},
+	Example: fmt.Sprintf("exec %s apply alpine", AppName),
+	Short:   "Extract the container filesystem to the rootfs directory and run a command",
+	Args:    cobra.MinimumNArgs(1), // Ensure exactly 1 argument is provided
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
+		opts.Cmd = args[1:]
 		cmd.SilenceUsage = true
 		_, err := opts.apply()
-		if err != nil {
-			fmt.Print("false")
-		}
 		return err
 	},
 }

@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -13,45 +12,56 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var defaultKeepEnv = []string{
-	"PWD",
-	"SHLVL",
-	"USER",
-	"TERM",
-	"SSL_CERT_DIR",
-}
-
-// AddToPath adds a path to the end of PATH environment variable
-func AddToPath(env []string, path string) []string {
-	p := slices.IndexFunc(env, func(s string) bool {
-		return strings.HasPrefix(s, "PATH=")
+func Getenv(s []string, key string) string {
+	p := slices.IndexFunc(s, func(s string) bool {
+		return strings.HasPrefix(s, key+"=")
 	})
 	if p > -1 {
-		env[p] = env[p] + ":" + path
-	} else {
-		env = append(env, "PATH="+path)
+		return strings.TrimPrefix(s[p], key+"=")
 	}
-	return env
+	return ""
+}
+
+func Which(env []string, cmd string) (string, error) {
+	oldPath := os.Getenv("PATH")
+	p := Getenv(env, "PATH")
+	if p == "" {
+		return "", fmt.Errorf("failed to find PATH in env: %v", env)
+	}
+	os.Setenv("PATH", p)
+	b, err := exec.LookPath(cmd)
+	os.Setenv("PATH", oldPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to find %s in PATH: %v", cmd, err)
+	}
+	return b, nil
+}
+
+func CoalesceWhich(env []string, cmd ...string) (string, error) {
+	var paths []string
+	for _, c := range cmd {
+		p, _ := Which(env, c)
+		paths = append(paths, p)
+	}
+	return util.Coalesce(paths...), nil
 }
 
 // PrepareEnv prepares environment variables for applying to the container
-func PrepareEnv(file string, overwrite bool, env []string) []string {
-	var finalEnv []string
-
+func PrepareEnv(file string, save, overwrite bool, env []string) ([]string, error) {
 	// Read variables from the previous image from the file
 	fileMap, err := godotenv.Read(file)
 	if err != nil && !strings.Contains(err.Error(), "no such file or directory") {
-		logrus.Warnf("Error reading file %s: %v", file, err)
+		return nil, fmt.Errorf("error reading file %s: %v", file, err)
 	}
 
 	// Create a map of new variables
 	newMap := Split(env)
 	logrus.Debugf("New environment variables: %s", newMap)
 
-	// Save new variables to the file if overwrite is enabled
-	if overwrite {
+	// Save new variables to the file
+	if save {
 		if err := godotenv.Write(newMap, file); err != nil {
-			logrus.Warnf("Error writing to file %s: %v", file, err)
+			return nil, fmt.Errorf("error writing to file %s: %v", file, err)
 		}
 	}
 
@@ -60,44 +70,30 @@ func PrepareEnv(file string, overwrite bool, env []string) []string {
 	logrus.Debugf("Environment variables: %s", currentMap)
 
 	// Determine which variables were set from the previous image
-	duplicatesMap := GetDuplicates(currentMap, fileMap)
-	logrus.Debugf("Duplicate environment variables: %s", duplicatesMap)
-
-	// They need to be cleared
-	for k := range duplicatesMap {
-		if !slices.Contains(defaultKeepEnv, k) {
-			finalEnv = append(finalEnv, fmt.Sprintf("unset %s ;", k))
-		}
-	}
-
-	// Get the list of variables set after the container started
-	currentWithoutDuplicates := UniqKeys(currentMap, duplicatesMap)
-	logrus.Debugf("Environment variables without duplicates: %s", currentWithoutDuplicates)
+	uniqOldMap := Uniq(currentMap, fileMap)
+	logrus.Debugf("Uniq environment variables: %s", uniqOldMap)
 
 	// Determine the list of new unique variables
-	uniqMap := UniqKeys(newMap, currentWithoutDuplicates)
-	logrus.Debugf("UniqMap variables: %s", uniqMap)
-
-	// Update PATH and Shell
-	var shell string
-	if _, exists := newMap["PATH"]; exists {
-		// Change shell
-		os.Setenv("PATH", newMap["PATH"])
-		which := func(s string) string { b, _ := exec.LookPath(s); return b }
-		shell = util.Coalesce(which("bash"), which("sh"))
-
-		uniqMap["PATH"] = newMap["PATH"] + ":" + util.GetExecDir()
-		logrus.Debugf("PATH is %s", uniqMap["PATH"])
+	var finalMap map[string]string
+	if overwrite {
+		finalMap = Merge(uniqOldMap, newMap)
+	} else {
+		finalMap = Merge(newMap, uniqOldMap)
 	}
+	logrus.Debugf("Uniq new variables: %s", finalMap)
+
+	// Update PATH
+	paths := util.CleanList([]string{newMap["PATH"], util.GetExecDir()})
+	finalMap["PATH"] = strings.Join(paths, ":")
 
 	// Compile the list of new variables
-	for k, v := range uniqMap {
-		finalEnv = append(finalEnv, fmt.Sprintf("export %s=%s", k, strconv.Quote(v)+";"))
+	var finalEnv []string
+	for k, v := range finalMap {
+		finalEnv = append(finalEnv, fmt.Sprintf("%s=%s", k, v))
 	}
 
 	logrus.Debugf("Final environment variables: %s", finalEnv)
-	finalEnv = append(finalEnv, "exec "+shell)
-	return finalEnv
+	return finalEnv, nil
 }
 
 // Split separates the environment variables into a map of key-value pairs
@@ -114,25 +110,24 @@ func Split(env []string) map[string]string {
 	return envMap
 }
 
-// GetDuplicates returns environment variables present in both x and y
-func GetDuplicates(x, y map[string]string) map[string]string {
+// Uniq returns uniq environment variables from x
+func Uniq(x, y map[string]string) map[string]string {
 	z := make(map[string]string)
 	// Iterate over x to find duplicate keys
 	for xKey, xVal := range x {
-		if yVal, yKeyExists := y[xKey]; yKeyExists && xVal == yVal {
+		if yVal, yKeyExists := y[xKey]; !yKeyExists || xVal != yVal {
 			z[xKey] = xVal
 		}
 	}
 	return z
 }
 
-// UniqKeys returns environment variables from x that are not present in y
-func UniqKeys(x, y map[string]string) map[string]string {
+// Merge merges maps
+func Merge(maps ...map[string]string) map[string]string {
 	z := make(map[string]string)
-	// Iterate over x to find unique keys
-	for xKey := range x {
-		if _, exists := y[xKey]; !exists {
-			z[xKey] = x[xKey]
+	for _, m := range maps {
+		for k, v := range m {
+			z[k] = v
 		}
 	}
 	return z

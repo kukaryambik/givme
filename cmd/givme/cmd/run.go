@@ -106,22 +106,18 @@ func (opts *CommandOptions) run() error {
 	// add command
 	prootConf.Command = slices.Concat(
 		cfg.Shell,
-		util.Coalesce([]string{opts.ProotEntrypoint}, cfg.Entrypoint),
-		util.Coalesce(opts.Cmd, cfg.Cmd),
+		util.Coalesce(util.CleanList([]string{opts.ProotEntrypoint}), util.CleanList(cfg.Entrypoint)),
+		util.Coalesce(util.CleanList(opts.Cmd), util.CleanList(cfg.Cmd)),
 	)
 
 	// Create the proot command and run it
 	cmd := prootConf.Cmd()
 	logrus.Debug(cmd.Args)
 
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-	cmd.Stdin = os.Stdin
-
 	logrus.Info("Running proot")
 
 	// Run the command
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Exec(); err != nil {
 		return fmt.Errorf("error running proot: %v", err)
 	}
 

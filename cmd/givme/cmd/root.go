@@ -6,10 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/kukaryambik/givme/pkg/logging"
-	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -55,14 +53,14 @@ var opts = &CommandOptions{
 	LogLevel:  logging.DefaultLevel,
 	ProotUser: "0:0",
 	RootFS:    "/",
-	Workdir:   filepath.Join(util.GetExecDir(), "tmp"),
+	Workdir:   filepath.Join("/tmp", AppName),
 }
 
 var (
-	defaultImagesDir  = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "images") })
-	defaultLayersDir  = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "layers") })
-	defaultCacheDir   = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, "cache") })
-	defaultDotEnvFile = sync.OnceValue(func() string { return filepath.Join(opts.Workdir, ".env") })
+	defaultImagesDir  = func() string { return filepath.Join(opts.Workdir, "images") }
+	defaultLayersDir  = func() string { return filepath.Join(opts.Workdir, "layers") }
+	defaultCacheDir   = func() string { return filepath.Join(opts.Workdir, "cache") }
+	defaultDotEnvFile = func() string { return filepath.Join(opts.Workdir, "last.env") }
 )
 
 func Execute() {
@@ -90,13 +88,6 @@ func init() {
 	}
 
 	a := strings.ToUpper(AppName)
-
-	// Create default directories
-	for _, p := range []string{defaultImagesDir(), defaultLayersDir(), defaultCacheDir()} {
-		if err := os.MkdirAll(p, os.ModePerm); err != nil {
-			logrus.Fatalf("Error creating directory %s: %v", p, err)
-		}
-	}
 
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(
@@ -211,9 +202,11 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("rootfs and workdir cannot be the same")
 		}
 
-		// Ensure the work directory exists.
-		if err := os.MkdirAll(opts.Workdir, os.ModePerm); err != nil {
-			logrus.Fatalf("Error creating work directory: %v", err)
+		// Create default directories
+		for _, p := range []string{defaultImagesDir(), defaultLayersDir(), defaultCacheDir()} {
+			if err := os.MkdirAll(p, os.ModePerm); err != nil {
+				logrus.Fatalf("Error creating directory %s: %v", p, err)
+			}
 		}
 
 		return nil
@@ -232,11 +225,7 @@ var snapshotCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		err := opts.snapshot()
-		if err != nil {
-			fmt.Print("false")
-		}
-		return err
+		return opts.snapshot()
 	},
 }
 
@@ -260,9 +249,6 @@ var saveCmd = &cobra.Command{
 		opts.Update = true
 		cmd.SilenceUsage = true
 		img, err := opts.save()
-		if err != nil {
-			fmt.Print("false")
-		}
 		fmt.Println(img.File)
 		return err
 	},

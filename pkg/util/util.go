@@ -37,6 +37,17 @@ func Coalesce[T any](vals ...T) T {
 	return zero
 }
 
+func CleanList[T any](list []T) []T {
+	var new []T
+	for _, v := range list {
+		r := reflect.ValueOf(v)
+		if !r.IsZero() {
+			new = append(new, v)
+		}
+	}
+	return new
+}
+
 // UniqString creates an array of string with unique values.
 func UniqString(a []string) []string {
 	var (

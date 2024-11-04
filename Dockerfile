@@ -96,7 +96,7 @@ SHELL [ "/givme/bin/busybox", "sh", "-c" ]
 RUN set -eux \
   && /givme/bin/busybox --install /givme/bin/ \
   && mkdir /bin \
-  && ln -s /givme/busybox/sh /bin/sh
+  && ln -s /givme/bin/sh /bin/sh
 
 # Copy Proot
 COPY --from=prepare-proot /proot/bin/proot /givme/bin/proot

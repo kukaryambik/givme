@@ -87,8 +87,8 @@ func (opts *CommandOptions) run() error {
 	prootConf := proot.ProotConf{
 		BinPath:    filepath.Join(util.GetExecDir(), "proot"),
 		RootFS:     opts.RootFS,
-		ChangeID:   util.Coalesce(opts.ProotUser, cfg.User, "0:0"),
-		Workdir:    util.Coalesce(opts.ProotCwd, cfg.WorkingDir, "/"),
+		ChangeID:   util.Coalesce(opts.ChangeID, cfg.User, "0:0"),
+		Workdir:    util.Coalesce(opts.Cwd, cfg.WorkingDir, "/"),
 		Env:        env,
 		ExtraFlags: opts.ProotFlags,
 		MixedMode:  true,

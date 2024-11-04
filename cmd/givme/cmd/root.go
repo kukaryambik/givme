@@ -32,15 +32,16 @@ type CommandOptions struct {
 	LogTimestamp     bool     `mapstructure:"log-timestamp"`
 	NoPurge          bool     `mapstructure:"no-purge"`
 	OverwriteEnv     bool     `mapstructure:"overwrite-env"`
-	ProotCwd         string   `mapstructure:"cwd"`
+	Cwd              string   `mapstructure:"cwd"`
 	ProotFlags       []string `mapstructure:"proot-flags"`
-	ProotMounts      []string `mapstructure:"mount"`
-	ProotUser        string   `mapstructure:"change-id"`
-	RegistryMirror   string   `mapstructure:"registry-mirror"`
-	RegistryPassword string   `mapstructure:"registry-password"`
-	RegistryUsername string   `mapstructure:"registry-username"`
-	RootFS           string   `mapstructure:"rootfs"`
-	Shell            string   `mapstructure:"shell"`
+	ProotMounts      []string `mapstructure:"proot-mount"`
+	ChangeID         string   `mapstructure:"change-id"`
+	RedirectOutput   bool
+	RegistryMirror   string `mapstructure:"registry-mirror"`
+	RegistryPassword string `mapstructure:"registry-password"`
+	RegistryUsername string `mapstructure:"registry-username"`
+	RootFS           string `mapstructure:"rootfs"`
+	Shell            string `mapstructure:"shell"`
 	TarFile          string
 	Update           bool   `mapstructure:"update"`
 	Workdir          string `mapstructure:"workdir"`
@@ -50,7 +51,7 @@ type CommandOptions struct {
 var opts = &CommandOptions{
 	LogFormat: logging.FormatColor,
 	LogLevel:  logging.DefaultLevel,
-	ProotUser: "0:0",
+	ChangeID:  "0:0",
 	RootFS:    "/",
 	Workdir:   filepath.Join("/tmp", AppName),
 }
@@ -75,6 +76,16 @@ func mkFlags(c func(*cobra.Command), l ...*cobra.Command) {
 }
 
 func init() {
+	fileInfo, err := os.Stdout.Stat()
+	if err != nil {
+		logrus.Warnf("Failed to stat Stdout: %v", err)
+	}
+
+	if (fileInfo.Mode() & os.ModeCharDevice) == 0 {
+		opts.RedirectOutput = true
+		logrus.Debug("Stdout is not a terminal")
+	}
+
 	a := strings.ToUpper(AppName)
 
 	// Global flags
@@ -157,11 +168,11 @@ func init() {
 	)
 
 	runCmd.Flags().StringVarP(
-		&opts.ProotCwd, "cwd", "w", opts.ProotCwd, "Working directory for the container")
+		&opts.Cwd, "cwd", "w", opts.Cwd, "Working directory for the container")
 	runCmd.Flags().StringSliceVar(
 		&opts.ProotMounts, "mount", opts.ProotMounts, "Mount host path to the container")
 	runCmd.Flags().StringVarP(
-		&opts.ProotUser, "change-id", "u", opts.ProotUser, "UID:GID for the container")
+		&opts.ChangeID, "change-id", "u", opts.ChangeID, "UID:GID for the container")
 	runCmd.Flags().StringSliceVar(
 		&opts.ProotFlags, "proot-flags", opts.ProotFlags, "Additional flags for proot")
 	runCmd.Flags().MarkHidden("proot-flags")
@@ -224,11 +235,7 @@ var snapshotCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		err := opts.snapshot()
-		if err != nil {
-			fmt.Print("false")
-		}
-		return err
+		return opts.snapshot()
 	},
 }
 

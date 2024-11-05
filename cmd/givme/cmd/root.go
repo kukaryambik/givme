@@ -255,11 +255,7 @@ var getenvCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
 		cmd.SilenceUsage = true
-		err := opts.getenv()
-		if err != nil {
-			fmt.Print("false")
-		}
-		return err
+		return opts.getenv()
 	},
 }
 

@@ -263,7 +263,7 @@ var applyCmd = &cobra.Command{
 	Use:     "apply [flags] IMAGE",
 	Aliases: []string{"a", "an", "the"},
 	Example: fmt.Sprintf("source <(%s apply alpine)", AppName),
-	Short:   "Extract the container filesystem to the rootfs directory",
+	Short:   "Extract the container filesystem to the rootfs directory and update the environment",
 	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]

@@ -88,7 +88,7 @@ curl --version
 #### Apply
 
 ```txt
-Extract the container filesystem to the rootfs directory
+Extract the container filesystem to the rootfs directory and update the environment
 
 Usage:
   givme apply [flags] IMAGE
@@ -102,6 +102,7 @@ source <(givme apply alpine)
 Flags:
   -h, --help                       help for apply
       --no-purge                   Do not purge the root directory before unpacking the image
+      --overwrite-env              Overwrite current environment variables with new ones from the image
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
       --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
@@ -121,7 +122,6 @@ Aliases:
 
 Flags:
   -h, --help                       help for getenv
-      --intact                     Keep intact environment variables instead of preparing them
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
       --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
@@ -160,6 +160,7 @@ Flags:
   -h, --help                       help for run
       --mount strings              Mount host path to the container
       --no-purge                   Do not purge the root directory before unpacking the image
+      --overwrite-env              Overwrite current environment variables with new ones from the image
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
       --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME

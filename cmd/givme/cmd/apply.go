@@ -3,14 +3,15 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/joho/godotenv"
 	"github.com/kukaryambik/givme/pkg/archiver"
 	"github.com/kukaryambik/givme/pkg/envars"
 	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/kukaryambik/givme/pkg/paths"
+	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -60,16 +61,22 @@ func (opts *CommandOptions) apply() (*image.Image, error) {
 
 	logrus.Info("Image applied")
 
-	if opts.RedirectOutput {
-		var env string
-		if opts.IntactEnv {
-			env, _ = godotenv.Marshal(envars.Split(cfg.Config.Env))
-		} else {
-			list := envars.PrepareEnv(defaultDotEnvFile(), true, cfg.Config.Env)
-			env = strings.Join(list, "\n")
-		}
-		fmt.Println(env)
+	// Prepare environment variables
+	current := envars.ToMap(os.Environ())
+	new := envars.ToMap(cfg.Config.Env)
+	old, err := envars.FromFile(new, defaultDotEnvFile(), true)
+	if err != nil {
+		return nil, err
 	}
+
+	unset := envars.Uniq(true, old, current)
+	set := envars.Merge(make(map[string]string), new)
+	if !opts.OverwriteEnv {
+		set = envars.UniqKeys(new, envars.Uniq(false, old, current))
+	}
+	set["PATH"] = strings.Trim(new["PATH"]+":"+util.GetExecDir(), ": ")
+
+	fmt.Println(envars.PrepareToEval(unset, set))
 
 	return img, nil
 }

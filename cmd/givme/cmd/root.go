@@ -27,21 +27,20 @@ type CommandOptions struct {
 	Cmd              []string
 	IgnorePaths      []string `mapstructure:"ignore"`
 	Image            string
-	IntactEnv        bool
 	LogFormat        string   `mapstructure:"log-format"`
 	LogLevel         string   `mapstructure:"log-level"`
 	LogTimestamp     bool     `mapstructure:"log-timestamp"`
 	NoPurge          bool     `mapstructure:"no-purge"`
+	OverwriteEnv     bool     `mapstructure:"overwrite-env"`
 	ProotCwd         string   `mapstructure:"cwd"`
 	ProotEntrypoint  string   `mapstructure:"entrypoint"`
 	ProotFlags       []string `mapstructure:"proot-flags"`
 	ProotMounts      []string `mapstructure:"mount"`
 	ProotUser        string   `mapstructure:"change-id"`
-	RedirectOutput   bool
-	RegistryMirror   string `mapstructure:"registry-mirror"`
-	RegistryPassword string `mapstructure:"registry-password"`
-	RegistryUsername string `mapstructure:"registry-username"`
-	RootFS           string `mapstructure:"rootfs"`
+	RegistryMirror   string   `mapstructure:"registry-mirror"`
+	RegistryPassword string   `mapstructure:"registry-password"`
+	RegistryUsername string   `mapstructure:"registry-username"`
+	RootFS           string   `mapstructure:"rootfs"`
 	TarFile          string
 	Update           bool   `mapstructure:"update"`
 	Workdir          string `mapstructure:"workdir"`
@@ -76,17 +75,6 @@ func mkFlags(c func(*cobra.Command), l ...*cobra.Command) {
 }
 
 func init() {
-
-	fileInfo, err := os.Stdout.Stat()
-	if err != nil {
-		logrus.Warnf("Failed to stat Stdout: %v", err)
-	}
-
-	if (fileInfo.Mode() & os.ModeCharDevice) == 0 {
-		opts.RedirectOutput = true
-		logrus.Debug("Stdout is not a terminal")
-	}
-
 	a := strings.ToUpper(AppName)
 
 	// Global flags
@@ -151,9 +139,14 @@ func init() {
 		// Add them to the list of subcommands
 		applyCmd, runCmd,
 	)
-
-	getenvCmd.Flags().BoolVar(
-		&opts.IntactEnv, "intact", opts.IntactEnv, "Keep intact environment variables instead of preparing them")
+	// --overwrite-env
+	mkFlags(func(cmd *cobra.Command) {
+		cmd.Flags().BoolVar(
+			&opts.OverwriteEnv, "overwrite-env", opts.OverwriteEnv, "Overwrite current environment variables with new ones from the image")
+	},
+		// Add them to the list of subcommands
+		applyCmd, runCmd,
+	)
 
 	runCmd.Flags().StringVar(
 		&opts.ProotEntrypoint, "entrypoint", opts.ProotEntrypoint, "Entrypoint for the container")

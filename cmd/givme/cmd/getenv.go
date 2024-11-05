@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/kukaryambik/givme/pkg/envars"
@@ -44,12 +43,10 @@ func (opts *CommandOptions) getenv() error {
 		return fmt.Errorf("error getting config from image %s: %v", img, err)
 	}
 
-	var env string
-	if opts.IntactEnv {
-		env, _ = godotenv.Marshal(envars.Split(cfg.Config.Env))
-	} else {
-		list := envars.PrepareEnv(defaultDotEnvFile(), opts.RedirectOutput, cfg.Config.Env)
-		env = strings.Join(list, "\n")
+	// Prepare environment variables
+	env, err := godotenv.Marshal(envars.ToMap(cfg.Config.Env))
+	if err != nil {
+		return fmt.Errorf("error marshalling environment variables: %v", err)
 	}
 
 	fmt.Println(env)

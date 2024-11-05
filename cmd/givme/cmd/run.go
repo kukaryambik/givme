@@ -76,7 +76,20 @@ func (opts *CommandOptions) run() error {
 	}
 	cfg := imgConf.Config
 
-	env := envars.AddToPath(cfg.Env, util.GetExecDir())
+	// Prepare environment variables
+	current := envars.ToMap(os.Environ())
+	new := envars.ToMap(cfg.Env)
+	old, err := envars.FromFile(new, defaultDotEnvFile(), false)
+	if err != nil {
+		return err
+	}
+
+	diff := envars.Uniq(false, current, old)
+	env := envars.Merge(new, diff)
+	if opts.OverwriteEnv {
+		env = envars.Merge(diff, new)
+	}
+	env["PATH"] = strings.Trim(new["PATH"]+":"+util.GetExecDir(), ": ")
 
 	// Create the proot command
 	prootConf := proot.ProotConf{
@@ -84,7 +97,7 @@ func (opts *CommandOptions) run() error {
 		RootFS:     opts.RootFS,
 		ChangeID:   util.Coalesce(opts.ProotUser, cfg.User, "0:0"),
 		Workdir:    util.Coalesce(opts.ProotCwd, cfg.WorkingDir, "/"),
-		Env:        slices.Concat(os.Environ(), env),
+		Env:        envars.ToSlice(false, env),
 		ExtraFlags: opts.ProotFlags,
 		MixedMode:  true,
 		TmpDir:     opts.Workdir,

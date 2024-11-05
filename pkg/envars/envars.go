@@ -3,115 +3,68 @@ package envars
 import (
 	"fmt"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
-	"github.com/kukaryambik/givme/pkg/util"
-	"github.com/sirupsen/logrus"
 )
 
-var defaultKeepEnv = []string{
-	"PWD",
-	"SHLVL",
-	"USER",
-	"TERM",
-	"SSL_CERT_DIR",
+// PrepareEnv prepares the environment variables for the container
+func PrepareToEval(unset, set map[string]string) string {
+	var unsetStr, setStr string
+	if len(unset) > 0 {
+		unsetStr = "unset " + strings.Join(ToSlice(true, unset), " ") + ";"
+	}
+	if len(set) > 0 {
+		setStr = "export " + strings.Join(ToSlice(true, set), " ") + ";"
+	}
+	return fmt.Sprintf("%s\n%s", unsetStr, setStr)
 }
 
-// AddToPath adds a path to the end of PATH environment variable
-func AddToPath(env []string, path string) []string {
-	p := slices.IndexFunc(env, func(s string) bool {
-		return strings.HasPrefix(s, "PATH=")
-	})
-	if p > -1 {
-		env[p] = env[p] + ":" + path
-	} else {
-		env = append(env, "PATH="+path)
-	}
-	return env
-}
-
-// PrepareEnv prepares environment variables for applying to the container
-func PrepareEnv(file string, overwrite bool, env []string) []string {
-	var finalEnv []string
-
-	// Read variables from the previous image from the file
-	fileMap, err := godotenv.Read(file)
-	if err != nil && !strings.Contains(err.Error(), "no such file or directory") {
-		logrus.Warnf("Error reading file %s: %v", file, err)
+func FromFile(new map[string]string, file string, overwrite bool) (map[string]string, error) {
+	// Reading variables from file
+	old, err := godotenv.Read(file)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("error reading file %s: %v", file, err)
 	}
 
-	// Create a map of new variables
-	newMap := Split(env)
-	logrus.Debugf("New environment variables: %s", newMap)
-
-	// Save new variables to the file if overwrite is enabled
 	if overwrite {
-		if err := godotenv.Write(newMap, file); err != nil {
-			logrus.Warnf("Error writing to file %s: %v", file, err)
+		if err := godotenv.Write(new, file); err != nil {
+			return nil, fmt.Errorf("error writing to file %s: %v", file, err)
 		}
 	}
 
-	// Get current environment variables
-	currentMap := Split(os.Environ())
-	logrus.Debugf("Environment variables: %s", currentMap)
-
-	// Determine which variables were set from the previous image
-	duplicatesMap := GetDuplicates(currentMap, fileMap)
-	logrus.Debugf("Duplicate environment variables: %s", duplicatesMap)
-
-	// They need to be cleared
-	for k := range duplicatesMap {
-		if !slices.Contains(defaultKeepEnv, k) {
-			finalEnv = append(finalEnv, fmt.Sprintf("unset %s", k))
-		}
-	}
-
-	// Get the list of variables set after the container started
-	currentWithoutDuplicates := UniqKeys(currentMap, duplicatesMap)
-	logrus.Debugf("Environment variables without duplicates: %s", currentWithoutDuplicates)
-
-	// Determine the list of new unique variables
-	uniqMap := UniqKeys(newMap, currentWithoutDuplicates)
-	logrus.Debugf("UniqMap variables: %s", uniqMap)
-
-	// Add PATH
-	if _, exists := newMap["PATH"]; exists {
-		uniqMap["PATH"] = newMap["PATH"] + ":" + util.GetExecDir()
-		logrus.Debugf("PATH is %s", uniqMap["PATH"])
-	}
-
-	// Compile the list of new variables
-	for k, v := range uniqMap {
-		finalEnv = append(finalEnv, fmt.Sprintf("export %s=%s", k, strconv.Quote(v)))
-	}
-
-	logrus.Debugf("Final environment variables: %s", finalEnv)
-	return finalEnv
+	return old, nil
 }
 
-// Split separates the environment variables into a map of key-value pairs
-func Split(env []string) map[string]string {
+// Parsing environment variables into a map
+func ToMap(env []string) map[string]string {
 	envMap := make(map[string]string)
 	for _, e := range env {
-		parts := strings.SplitN(e, "=", 2)
-		if len(parts) != 2 {
-			continue
+		if kv := strings.SplitN(e, "=", 2); len(kv) == 2 {
+			envMap[kv[0]] = kv[1]
 		}
-		key, value := parts[0], parts[1]
-		envMap[key] = value
 	}
 	return envMap
 }
 
-// GetDuplicates returns environment variables present in both x and y
-func GetDuplicates(x, y map[string]string) map[string]string {
+// Converting map into a slice of strings
+func ToSlice(quote bool, m map[string]string) []string {
+	slice := make([]string, 0, len(m))
+	for k, v := range m {
+		if quote {
+			v = strconv.Quote(v)
+		}
+		slice = append(slice, k+"="+v)
+	}
+	return slice
+}
+
+// Uniq returns environment variables unique for x or duplicates
+func Uniq(duplicates bool, x, y map[string]string) map[string]string {
 	z := make(map[string]string)
-	// Iterate over x to find duplicate keys
 	for xKey, xVal := range x {
-		if yVal, yKeyExists := y[xKey]; yKeyExists && xVal == yVal {
+		if yVal, yKeyExists := y[xKey]; (yKeyExists && xVal == yVal) == duplicates {
 			z[xKey] = xVal
 		}
 	}
@@ -121,10 +74,20 @@ func GetDuplicates(x, y map[string]string) map[string]string {
 // UniqKeys returns environment variables from x that are not present in y
 func UniqKeys(x, y map[string]string) map[string]string {
 	z := make(map[string]string)
-	// Iterate over x to find unique keys
 	for xKey := range x {
 		if _, exists := y[xKey]; !exists {
 			z[xKey] = x[xKey]
+		}
+	}
+	return z
+}
+
+// Merge merges maps
+func Merge(maps ...map[string]string) map[string]string {
+	z := make(map[string]string)
+	for _, m := range maps {
+		for k, v := range m {
+			z[k] = v
 		}
 	}
 	return z

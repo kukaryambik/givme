@@ -84,7 +84,7 @@ func (opts *CommandOptions) apply() (*image.Image, error) {
 	unset := envars.Uniq(true, old, current)
 	set := envars.Merge(make(map[string]string), new)
 	if !opts.OverwriteEnv {
-		set = envars.UniqKeys(new, envars.Uniq(false, old, current))
+		set = envars.UniqKeys(new, envars.Uniq(false, current, old))
 	}
 	set["PATH"] = strings.Trim(new["PATH"]+":"+util.GetExecDir(), ": ")
 

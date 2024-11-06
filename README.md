@@ -156,14 +156,15 @@ Aliases:
 Flags:
   -u, --change-id string           UID:GID for the container (default "0:0")
   -w, --cwd string                 Working directory for the container
-      --entrypoint string          Entrypoint for the container
+      --entrypoint stringArray     Entrypoint for the container
   -h, --help                       help for run
-      --mount strings              Mount host path to the container
-      --no-purge                   Do not purge the root directory before unpacking the image
+      --mount stringArray          Mount host path to the container
+      --name string                The name of the container
       --overwrite-env              Overwrite current environment variables with new ones from the image
       --registry-mirror string     Registry mirror; or use GIVME_REGISTRY_MIRROR
       --registry-password string   Password for registry authentication; or use GIVME_REGISTRY_PASSWORD
       --registry-username string   Username for registry authentication; or use GIVME_REGISTRY_USERNAME
+      --rm                         Remove the rootfs directory after running the command
       --update                     Update the image instead of using existing file
 ```
 

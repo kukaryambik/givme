@@ -2,9 +2,10 @@ package proot
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"reflect"
 	"regexp"
-	"syscall"
 
 	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
@@ -14,16 +15,6 @@ const (
 	// Default binary path
 	DefaultBinPath = "proot"
 )
-
-type Cmd struct {
-	Path string
-	Args []string
-	Env  []string
-}
-
-func (c *Cmd) Exec() error {
-	return syscall.Exec(c.Path, append([]string{c.Path}, c.Args...), c.Env)
-}
 
 type ProotConf struct {
 	// Basic configuration
@@ -63,14 +54,14 @@ func hasTag(s *reflect.StructTag, t string) bool {
 	return ok
 }
 
-func (cfg *ProotConf) Cmd() *Cmd {
+func (cfg *ProotConf) Cmd() *exec.Cmd {
 	// Create the proot command
-	cmd := &Cmd{Path: util.Coalesce(cfg.BinPath, DefaultBinPath)}
+	cmd := exec.Command(util.Coalesce(cfg.BinPath, DefaultBinPath))
 	logrus.Debugf("Creating proot command: %s", cmd.Path)
 
 	cmd.Env = append(cmd.Env, cfg.Env...)
 
-	args := cfg.ExtraFlags
+	args := util.CleanList(cfg.ExtraFlags)
 
 	// Add mixed mode
 	args = append(args, fmt.Sprintf("--mixed-mode %v", cfg.MixedMode))
@@ -137,6 +128,10 @@ func (cfg *ProotConf) Cmd() *Cmd {
 			cmd.Args = append(cmd.Args, str)
 		}
 	}
+
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
 	// Log final command and environment variables
 	logrus.Debugf("Final command: %v", args)

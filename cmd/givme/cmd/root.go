@@ -32,15 +32,17 @@ type CommandOptions struct {
 	LogTimestamp     bool     `mapstructure:"log-timestamp"`
 	NoPurge          bool     `mapstructure:"no-purge"`
 	OverwriteEnv     bool     `mapstructure:"overwrite-env"`
-	ProotCwd         string   `mapstructure:"cwd"`
-	ProotEntrypoint  []string `mapstructure:"entrypoint"`
-	ProotFlags       []string `mapstructure:"proot-flags"`
-	ProotMounts      []string `mapstructure:"mount"`
-	ProotUser        string   `mapstructure:"change-id"`
 	RegistryMirror   string   `mapstructure:"registry-mirror"`
 	RegistryPassword string   `mapstructure:"registry-password"`
 	RegistryUsername string   `mapstructure:"registry-username"`
 	RootFS           string   `mapstructure:"rootfs"`
+	RunChangeID      string   `mapstructure:"change-id"`
+	RunCwd           string   `mapstructure:"cwd"`
+	RunEntrypoint    []string `mapstructure:"entrypoint"`
+	RunName          string
+	RunMounts        []string `mapstructure:"mount"`
+	RunProotFlags    string   `mapstructure:"proot-flags"`
+	RunRemoveAfter   bool     `mapstructure:"rm"`
 	TarFile          string
 	Update           bool   `mapstructure:"update"`
 	Workdir          string `mapstructure:"workdir"`
@@ -48,11 +50,11 @@ type CommandOptions struct {
 
 // Command Options with default values
 var opts = &CommandOptions{
-	LogFormat: logging.FormatColor,
-	LogLevel:  logging.DefaultLevel,
-	ProotUser: "0:0",
-	RootFS:    "/",
-	Workdir:   filepath.Join("/tmp", AppName),
+	LogFormat:   logging.FormatColor,
+	LogLevel:    logging.DefaultLevel,
+	RunChangeID: "0:0",
+	RootFS:      "/",
+	Workdir:     filepath.Join("/tmp", AppName),
 }
 
 var (
@@ -137,7 +139,7 @@ func init() {
 			&opts.NoPurge, "no-purge", opts.NoPurge, "Do not purge the root directory before unpacking the image")
 	},
 		// Add them to the list of subcommands
-		applyCmd, runCmd,
+		applyCmd,
 	)
 	// --overwrite-env
 	mkFlags(func(cmd *cobra.Command) {
@@ -149,15 +151,19 @@ func init() {
 	)
 
 	runCmd.Flags().StringArrayVar(
-		&opts.ProotEntrypoint, "entrypoint", opts.ProotEntrypoint, "Entrypoint for the container")
+		&opts.RunEntrypoint, "entrypoint", opts.RunEntrypoint, "Entrypoint for the container")
 	runCmd.Flags().StringVarP(
-		&opts.ProotCwd, "cwd", "w", opts.ProotCwd, "Working directory for the container")
-	runCmd.Flags().StringSliceVar(
-		&opts.ProotMounts, "mount", opts.ProotMounts, "Mount host path to the container")
+		&opts.RunCwd, "cwd", "w", opts.RunCwd, "Working directory for the container")
+	runCmd.Flags().StringArrayVar(
+		&opts.RunMounts, "mount", opts.RunMounts, "Mount host path to the container")
 	runCmd.Flags().StringVarP(
-		&opts.ProotUser, "change-id", "u", opts.ProotUser, "UID:GID for the container")
-	runCmd.Flags().StringSliceVar(
-		&opts.ProotFlags, "proot-flags", opts.ProotFlags, "Additional flags for proot")
+		&opts.RunChangeID, "change-id", "u", opts.RunChangeID, "UID:GID for the container")
+	runCmd.Flags().BoolVar(
+		&opts.RunRemoveAfter, "rm", opts.RunRemoveAfter, "Remove the rootfs directory after running the command")
+	runCmd.Flags().StringVar(
+		&opts.RunName, "name", opts.RunName, "The name of the container")
+	runCmd.Flags().StringVar(
+		&opts.RunProotFlags, "proot-flags", opts.RunProotFlags, "Additional flags for proot")
 	runCmd.Flags().MarkHidden("proot-flags")
 
 	// Initialize viper and bind flags to environment variables

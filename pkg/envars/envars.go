@@ -18,7 +18,7 @@ func PrepareToEval(unset, set map[string]string) string {
 	if len(set) > 0 {
 		setStr = "export " + strings.Join(ToSlice(true, set), " ") + ";"
 	}
-	return fmt.Sprintf("%s\n%s", unsetStr, setStr)
+	return strings.TrimSpace(fmt.Sprintf("%s\n%s", unsetStr, setStr))
 }
 
 func FromFile(new map[string]string, file string, overwrite bool) (map[string]string, error) {

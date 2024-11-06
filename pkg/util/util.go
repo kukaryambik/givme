@@ -11,6 +11,17 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+func IsOutRedirected() bool {
+	fileInfo, err := os.Stdout.Stat()
+	if err != nil {
+		logrus.Warnf("Failed to stat Stdout: %v", err)
+	}
+	if (fileInfo.Mode() & os.ModeCharDevice) == 0 {
+		return true
+	}
+	return false
+}
+
 // GetExecDir returns the directory of the current executable.
 var GetExecDir = sync.OnceValue(func() string {
 	exe, err := os.Executable()

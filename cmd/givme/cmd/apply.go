@@ -59,12 +59,24 @@ func (opts *CommandOptions) apply() (*image.Image, error) {
 		return nil, fmt.Errorf("error getting config from image %s: %v", img, err)
 	}
 
-	logrus.Info("Image applied")
+	logrus.Info("Preparing environment variables")
+
+	outRedirected := util.IsOutRedirected()
+	if !outRedirected {
+		logrus.Warnf(
+			"Output is not redirected!\n"+
+				"It is strongly recommended to use this command in conjunction with source or eval. For example:\n"+
+				"– `source <(%s apply %s)`\n"+
+				"– `eval $(%s apply %s)`",
+			AppName, opts.Image, AppName, opts.Image,
+		)
+		logrus.Info("Image environment variables will not be saved to a file")
+	}
 
 	// Prepare environment variables
 	current := envars.ToMap(os.Environ())
 	new := envars.ToMap(cfg.Config.Env)
-	old, err := envars.FromFile(new, defaultDotEnvFile(), true)
+	old, err := envars.FromFile(new, defaultDotEnvFile(), outRedirected)
 	if err != nil {
 		return nil, err
 	}

@@ -42,7 +42,7 @@ type CommandOptions struct {
 	RunName          string
 	RunMounts        []string `mapstructure:"mount"`
 	RunProotFlags    string   `mapstructure:"proot-flags"`
-	RunRemoveAfter   bool     `mapstructure:"rm"`
+	RunRemoveAfter   bool
 	TarFile          string
 	Update           bool   `mapstructure:"update"`
 	Workdir          string `mapstructure:"workdir"`
@@ -133,14 +133,6 @@ func init() {
 		// Add them to the list of subcommands
 		applyCmd, runCmd,
 	)
-	// --no-purge
-	mkFlags(func(cmd *cobra.Command) {
-		cmd.Flags().BoolVar(
-			&opts.NoPurge, "no-purge", opts.NoPurge, "Do not purge the root directory before unpacking the image")
-	},
-		// Add them to the list of subcommands
-		applyCmd,
-	)
 	// --overwrite-env
 	mkFlags(func(cmd *cobra.Command) {
 		cmd.Flags().BoolVar(
@@ -149,6 +141,9 @@ func init() {
 		// Add them to the list of subcommands
 		applyCmd, runCmd,
 	)
+
+	applyCmd.Flags().BoolVar(
+		&opts.NoPurge, "no-purge", opts.NoPurge, "Do not purge the root directory before unpacking the image")
 
 	runCmd.Flags().StringArrayVar(
 		&opts.RunEntrypoint, "entrypoint", opts.RunEntrypoint, "Entrypoint for the container")

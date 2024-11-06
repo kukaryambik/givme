@@ -37,7 +37,7 @@ func FromFile(new map[string]string, file string, overwrite bool) (map[string]st
 	return old, nil
 }
 
-// Parsing environment variables into a map
+// ToMap parsing environment variables into a map
 func ToMap(env []string) map[string]string {
 	envMap := make(map[string]string)
 	for _, e := range env {
@@ -48,9 +48,9 @@ func ToMap(env []string) map[string]string {
 	return envMap
 }
 
-// Converting map into a slice of strings
+// ToSlice converting map into a slice of strings
 func ToSlice(quote bool, m map[string]string) []string {
-	slice := make([]string, 0, len(m))
+	var slice []string
 	for k, v := range m {
 		if quote {
 			v = strconv.Quote(v)

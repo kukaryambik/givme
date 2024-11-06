@@ -33,7 +33,7 @@ type CommandOptions struct {
 	NoPurge          bool     `mapstructure:"no-purge"`
 	OverwriteEnv     bool     `mapstructure:"overwrite-env"`
 	ProotCwd         string   `mapstructure:"cwd"`
-	ProotEntrypoint  string   `mapstructure:"entrypoint"`
+	ProotEntrypoint  []string `mapstructure:"entrypoint"`
 	ProotFlags       []string `mapstructure:"proot-flags"`
 	ProotMounts      []string `mapstructure:"mount"`
 	ProotUser        string   `mapstructure:"change-id"`
@@ -148,7 +148,7 @@ func init() {
 		applyCmd, runCmd,
 	)
 
-	runCmd.Flags().StringVar(
+	runCmd.Flags().StringArrayVar(
 		&opts.ProotEntrypoint, "entrypoint", opts.ProotEntrypoint, "Entrypoint for the container")
 	runCmd.Flags().StringVarP(
 		&opts.ProotCwd, "cwd", "w", opts.ProotCwd, "Working directory for the container")

@@ -117,11 +117,20 @@ func (opts *CommandOptions) run() error {
 	}
 
 	// add command
-	prootConf.Command = slices.Concat(
-		cfg.Shell,
-		util.Coalesce(util.CleanList([]string{opts.ProotEntrypoint}), util.CleanList(cfg.Entrypoint)),
-		util.Coalesce(util.CleanList(opts.Cmd), util.CleanList(cfg.Cmd)),
-	)
+	shell := util.Coalesce(util.CleanList(cfg.Shell), []string{"/bin/sh", "-c"})
+	var args []string
+	if len(opts.ProotEntrypoint) > 0 {
+		args = append(opts.ProotEntrypoint[len(opts.ProotEntrypoint)-1:], opts.Cmd...)
+	} else {
+		args = append(
+			util.CleanList(cfg.Entrypoint),
+			util.Coalesce(util.CleanList(opts.Cmd), util.CleanList(cfg.Cmd))...,
+		)
+	}
+	prootConf.Command = util.CleanList(append(
+		shell,
+		strings.Join(util.Coalesce(util.CleanList(args), shell[:1]), " "),
+	))
 
 	// Create the proot command and run it
 	cmd := prootConf.Cmd()

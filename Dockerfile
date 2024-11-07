@@ -40,7 +40,7 @@ RUN apk add --no-cache \
 RUN git clone https://github.com/proot-me/proot.git /proot/src
 WORKDIR /proot/src
 
-ARG PROOT_VERSION=v5.4.0
+ARG PROOT_VERSION="5f780cb"
 RUN set -eux \
   && git checkout "${PROOT_VERSION}" \
   && export CFLAGS="-static" \
@@ -51,8 +51,6 @@ RUN set -eux \
 # Install proot
 RUN set -eux \
   && mkdir -p /proot/lib /proot/bin \
-  && INTERP=$(file -bL /bin/sh | tr ',' '\n' | awk '$1 == "interpreter" {print $2}') \
-  && cp -L $INTERP /proot/lib/ \
   && cp src/proot /proot/bin/proot \
   && chmod +x /proot/bin/proot
 
@@ -100,7 +98,6 @@ RUN set -eux \
 
 # Copy Proot
 COPY --from=prepare-proot /proot/bin/proot /givme/bin/proot
-COPY --from=prepare-proot /proot/lib /lib
 
 # Copy Certs
 COPY --from=prepare-certs /etc/ssl/certs/ca-certificates.crt $SSL_CERT_DIR/ca-certificates.crt

@@ -5,8 +5,37 @@ import (
 
 	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 )
+
+func ExecCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "exec [flags] IMAGE [cmd]...",
+		Aliases: []string{"e"},
+		Short:   "Exec a command in the container",
+		Args:    cobra.MinimumNArgs(1), // Ensure exactly 1 argument is provided
+		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.Image = args[0]
+			opts.Cmd = args[1:]
+			cmd.SilenceUsage = true
+			return opts.Exec()
+		},
+	}
+
+	cmd.Flags().BoolVar(
+		&opts.Update, "update", opts.Update, "Update the image instead of using existing file")
+	cmd.Flags().BoolVar(
+		&opts.OverwriteEnv, "overwrite-env", opts.OverwriteEnv, "Overwrite current environment variables with new ones from the image")
+	cmd.Flags().BoolVar(
+		&opts.NoPurge, "no-purge", opts.NoPurge, "Do not purge the root directory before unpacking the image")
+	cmd.Flags().StringArrayVar(
+		&opts.Entrypoint, "entrypoint", opts.Entrypoint, "Entrypoint for the container")
+	cmd.Flags().StringVarP(
+		&opts.Cwd, "cwd", "w", opts.Cwd, "Working directory for the container")
+
+	return cmd
+}
 
 func (opts *CommandOptions) Exec() error {
 

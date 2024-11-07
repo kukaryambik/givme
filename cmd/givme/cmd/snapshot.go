@@ -12,9 +12,32 @@ import (
 	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
-var defaultSnapshotFile = sync.OnceValue(func() string { return "snapshot_" + time.Now().Format("20060102150405") + ".tar" })
+var (
+	defaultSnapshotFile = sync.OnceValue(func() string { return "snapshot_" + time.Now().Format("20060102150405") + ".tar" })
+	defaultTarPath      = filepath.Join(defaultImagesDir(), defaultSnapshotFile())
+)
+
+func SnapshotCmd() *cobra.Command {
+
+	cmd := &cobra.Command{
+		Use:     "snapshot",
+		Aliases: []string{"snap"},
+		Short:   "Create a snapshot archive",
+		Example: fmt.Sprintf("SNAPSHOT=$(%s snap)", AppName),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+			return opts.Snapshot()
+		},
+	}
+
+	cmd.Flags().StringVarP(&opts.TarFile, "tar-file", "f", defaultTarPath, "Path to the tar file")
+	cmd.MarkFlagFilename("tar-file", ".tar")
+
+	return cmd
+}
 
 // Snapshot creates a tar archive of the rootfs directory, excluding
 // the directories specified in buildExclusions.

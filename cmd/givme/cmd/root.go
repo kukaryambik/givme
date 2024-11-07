@@ -10,6 +10,7 @@ import (
 	"github.com/kukaryambik/givme/pkg/logging"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -70,9 +71,16 @@ func Execute() {
 	}
 }
 
+func AddFlag(c func(*pflag.FlagSet), l ...*cobra.Command) {
+	for _, cmd := range l {
+		c(cmd.Flags())
+	}
+}
+
 func mkFlags(c func(*cobra.Command), l ...*cobra.Command) {
 	for _, cmd := range l {
 		c(cmd)
+		cmd.Flags()
 	}
 }
 
@@ -88,66 +96,49 @@ func init() {
 	rootCmd.MarkPersistentFlagDirname("workdir")
 	rootCmd.PersistentFlags().StringSliceVarP(
 		&opts.IgnorePaths, "ignore", "i", nil, fmt.Sprintf("Ignore these paths; or use %s_IGNORE", a))
+	rootCmd.Flags().StringVar(
+		&opts.RegistryMirror, "registry-mirror", opts.RegistryMirror,
+		fmt.Sprintf("Registry mirror; or use %s_REGISTRY_MIRROR", strings.ToUpper(AppName)),
+	)
+	rootCmd.Flags().StringVar(
+		&opts.RegistryUsername, "registry-username", opts.RegistryUsername,
+		fmt.Sprintf("Username for registry authentication; or use %s_REGISTRY_USERNAME", a),
+	)
+	rootCmd.Flags().StringVar(
+		&opts.RegistryPassword, "registry-password", opts.RegistryPassword,
+		fmt.Sprintf("Password for registry authentication; or use %s_REGISTRY_PASSWORD", a),
+	)
 
 	// Logging flags
 	rootCmd.PersistentFlags().StringVarP(
-		&opts.LogLevel, "verbosity", "v", opts.LogLevel, "Log level (trace, debug, info, warn, error, fatal, panic)")
+		&opts.LogLevel, "verbosity", "v", "", "Log level (trace, debug, info, warn, error, fatal, panic)")
 	rootCmd.PersistentFlags().StringVar(
 		&opts.LogFormat, "log-format", opts.LogFormat, "Log format (text, color, json)")
 	rootCmd.PersistentFlags().BoolVar(
 		&opts.LogTimestamp, "log-timestamp", opts.LogTimestamp, "Timestamp in log output")
 
+	var cmd *cobra.Command
 	// Subcommand flags
-	// --tar-file -f
-	mkFlags(func(cmd *cobra.Command) {
-		cmd.Flags().StringVarP(
-			&opts.TarFile, "tar-file", "f", opts.TarFile, "Path to the tar file")
-		cmd.MarkFlagFilename("tar-file", ".tar")
-	},
-		// Add them to the list of subcommands
-		snapshotCmd, saveCmd,
-	)
-	// --registry-[mirror|username|password]
-	mkFlags(func(cmd *cobra.Command) {
-		cmd.Flags().StringVar(
-			&opts.RegistryMirror, "registry-mirror", opts.RegistryMirror,
-			fmt.Sprintf("Registry mirror; or use %s_REGISTRY_MIRROR", strings.ToUpper(AppName)),
-		)
-		cmd.Flags().StringVar(
-			&opts.RegistryUsername, "registry-username", opts.RegistryUsername,
-			fmt.Sprintf("Username for registry authentication; or use %s_REGISTRY_USERNAME", a),
-		)
-		cmd.Flags().StringVar(
-			&opts.RegistryPassword, "registry-password", opts.RegistryPassword,
-			fmt.Sprintf("Password for registry authentication; or use %s_REGISTRY_PASSWORD", a),
-		)
-	},
-		// Add them to the list of subcommands
-		saveCmd, applyCmd, runCmd, getenvCmd, extractCmd, execCmd,
-	)
+	cmd.Flags().StringVarP(&opts.TarFile, "tar-file", "f", "", "Path to the tar file")
+	cmd.MarkFlagFilename("tar-file", ".tar")
+	// saveCmd,
+
 	// --update
 	mkFlags(func(cmd *cobra.Command) {
 		cmd.Flags().BoolVar(
 			&opts.Update, "update", opts.Update, "Update the image instead of using existing file")
 	},
 		// Add them to the list of subcommands
-		applyCmd, runCmd, extractCmd, execCmd,
+		runCmd, extractCmd,
 	)
+
 	// --overwrite-env
 	mkFlags(func(cmd *cobra.Command) {
 		cmd.Flags().BoolVar(
 			&opts.OverwriteEnv, "overwrite-env", opts.OverwriteEnv, "Overwrite current environment variables with new ones from the image")
 	},
 		// Add them to the list of subcommands
-		applyCmd, runCmd, execCmd,
-	)
-	// --no-purge
-	mkFlags(func(cmd *cobra.Command) {
-		cmd.Flags().BoolVar(
-			&opts.NoPurge, "no-purge", opts.NoPurge, "Do not purge the root directory before unpacking the image")
-	},
-		// Add them to the list of subcommands
-		applyCmd, execCmd,
+		runCmd,
 	)
 
 	// --entrypoint, --cwd
@@ -158,13 +149,14 @@ func init() {
 			&opts.Cwd, "cwd", "w", opts.Cwd, "Working directory for the container")
 	},
 		// Add them to the list of subcommands
-		runCmd, execCmd,
+		runCmd,
 	)
 
-	runCmd.Flags().StringVarP(
-		&opts.RunChangeID, "change-id", "u", opts.RunChangeID, "UID:GID for the container")
+	runCmd.Flags().StringVarP(&opts.RunChangeID, "change-id", "u", opts.RunChangeID, "UID:GID for the container")
 	runCmd.Flags().StringArrayVarP(
 		&opts.RunProotBinds, "proot-bind", "b", opts.RunProotBinds, "Mount host path to the container")
+	rootCmd.Flags().AddFlag(cmd.Flag("proot-bind"))
+
 	runCmd.Flags().BoolVar(
 		&opts.RunRemoveAfter, "rm", opts.RunRemoveAfter, "Remove the rootfs directory after running the command")
 	runCmd.Flags().StringVar(
@@ -182,14 +174,14 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(
-		applyCmd,
-		execCmd,
+		ApplyCmd(),
+		ExecCmd(),
 		extractCmd,
 		getenvCmd,
 		purgeCmd,
 		runCmd,
 		saveCmd,
-		snapshotCmd,
+		SnapshotCmd(),
 		versionCmd,
 	)
 }
@@ -220,22 +212,6 @@ var rootCmd = &cobra.Command{
 		}
 
 		return nil
-	},
-}
-
-var snapshotCmd = &cobra.Command{
-	Use:     "snapshot",
-	Aliases: []string{"snap"},
-	Short:   "Create a snapshot archive",
-	Example: fmt.Sprintf("SNAPSHOT=$(%s snap)", AppName),
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if opts.TarFile == "" {
-			opts.TarFile = filepath.Join(defaultImagesDir(), defaultSnapshotFile())
-		}
-	},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cmd.SilenceUsage = true
-		return opts.Snapshot()
 	},
 }
 
@@ -289,23 +265,6 @@ var extractCmd = &cobra.Command{
 	},
 }
 
-var applyCmd = &cobra.Command{
-	Use:     "apply [flags] IMAGE",
-	Aliases: []string{"a", "an", "the"},
-	Example: fmt.Sprintf("source <(%s apply alpine)", AppName),
-	Short:   "Extract the image filesystem and print prepared environment variables to stdout",
-	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
-	RunE: func(cmd *cobra.Command, args []string) error {
-		opts.Image = args[0]
-		cmd.SilenceUsage = true
-		_, err := opts.Apply()
-		if err != nil {
-			fmt.Print("false")
-		}
-		return err
-	},
-}
-
 var runCmd = &cobra.Command{
 	Use:     "run [flags] IMAGE [cmd]...",
 	Aliases: []string{"r", "proot"},
@@ -316,19 +275,6 @@ var runCmd = &cobra.Command{
 		opts.Cmd = args[1:]
 		cmd.SilenceUsage = true
 		return opts.Run()
-	},
-}
-
-var execCmd = &cobra.Command{
-	Use:     "exec [flags] IMAGE [cmd]...",
-	Aliases: []string{"e"},
-	Short:   "Exec a command in the container",
-	Args:    cobra.MinimumNArgs(1), // Ensure exactly 1 argument is provided
-	RunE: func(cmd *cobra.Command, args []string) error {
-		opts.Image = args[0]
-		opts.Cmd = args[1:]
-		cmd.SilenceUsage = true
-		return opts.Exec()
 	},
 }
 

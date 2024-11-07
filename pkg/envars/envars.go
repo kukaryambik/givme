@@ -9,18 +9,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// PrepareEnv prepares the environment variables for the container
-func PrepareToEval(unset, set map[string]string) string {
-	var unsetStr, setStr string
-	if len(unset) > 0 {
-		unsetStr = "unset " + strings.Join(ToSlice(true, unset), " ") + ";"
-	}
-	if len(set) > 0 {
-		setStr = "export " + strings.Join(ToSlice(true, set), " ") + ";"
-	}
-	return strings.TrimSpace(fmt.Sprintf("%s\n%s", unsetStr, setStr))
-}
-
 func FromFile(new map[string]string, file string, overwrite bool) (map[string]string, error) {
 	// Reading variables from file
 	old, err := godotenv.Read(file)

@@ -4,23 +4,44 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/kukaryambik/givme/pkg/archiver"
-	"github.com/kukaryambik/givme/pkg/envars"
+	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/kukaryambik/givme/pkg/proot"
 	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
 )
 
-func (opts *CommandOptions) run() error {
+func (opts *CommandOptions) Run() error {
 
+	// Get an image
+	img, err := opts.Save()
+	if err != nil {
+		return err
+	}
+
+	// Get the image config
+	imgConf, err := img.Config()
+	if err != nil {
+		return err
+	}
+	cfg := imgConf.Config
+
+	// Prepare the command
+	command := opts.PrepareEntrypoint(&cfg)
+
+	// Prepare environment variables
+	logrus.Info("Preparing environment variables")
+	env, err := opts.PrepareEnvForExec(&cfg)
+	if err != nil {
+		return err
+	}
+
+	// Set the rootfs directory
 	if opts.RunName == "" {
 		bytes := make([]byte, 6)
 		if _, err := rand.Read(bytes); err != nil {
@@ -29,18 +50,8 @@ func (opts *CommandOptions) run() error {
 		opts.RunName = hex.EncodeToString(bytes)
 	}
 	name := util.Slugify(opts.RunName)
-
-	// Get the image
-	img, err := opts.save()
-	if err != nil {
-		return err
-	}
-
-	// Set the rootfs directory
-	if strings.Trim(opts.RootFS, "/") == "" {
-		opts.RootFS = filepath.Join(opts.Workdir, "rootfs", name)
-		logrus.Infof("Using '%s' as rootfs", opts.RootFS)
-	}
+	opts.RootFS = filepath.Join(opts.Workdir, "rootfs", name)
+	logrus.Infof("Using %q as rootfs", opts.RootFS)
 
 	// Configure ignored paths
 	ignoreConf := paths.Ignore(opts.IgnorePaths).ExclFromList(opts.RootFS)
@@ -63,50 +74,19 @@ func (opts *CommandOptions) run() error {
 		return err
 	}
 	if len(entries) == 0 {
-		logrus.Infof("Extracting filesystem to '%s'", opts.RootFS)
-		reader, writer := io.Pipe()
-		go func() {
-			if err := crane.Export(img.Image, writer); err != nil {
-				writer.CloseWithError(err)
-				return
-			}
-			writer.Close()
-		}()
-
-		if err := archiver.Untar(reader, opts.RootFS, ignores); err != nil {
+		if err := image.Extract(img, opts.RootFS, ignores...); err != nil {
 			return err
 		}
 	}
 
-	// Get the image config
-	imgConf, err := img.Config()
-	if err != nil {
-		return err
-	}
-	cfg := imgConf.Config
-
-	// Prepare environment variables
-	current := envars.ToMap(os.Environ())
-	new := envars.ToMap(cfg.Env)
-	old, err := envars.FromFile(new, defaultDotEnvFile(), false)
-	if err != nil {
-		return err
-	}
-
-	diff := envars.Uniq(false, current, old)
-	env := envars.Merge(new, diff)
-	if opts.OverwriteEnv {
-		env = envars.Merge(diff, new)
-	}
-	env["PATH"] = strings.Trim(new["PATH"]+":"+util.GetExecDir(), ": ")
-
 	// Create the proot command
 	prootConf := proot.ProotConf{
-		BinPath:    filepath.Join(util.GetExecDir(), "proot"),
+		BinPath:    util.Coalesce(opts.RunProotBin, filepath.Join(util.GetExecDir(), "proot")),
+		Command:    command,
 		RootFS:     opts.RootFS,
 		ChangeID:   util.Coalesce(opts.RunChangeID, cfg.User, "0:0"),
-		Workdir:    util.Coalesce(opts.RunCwd, cfg.WorkingDir, "/"),
-		Env:        envars.ToSlice(false, env),
+		Workdir:    util.Coalesce(opts.Cwd, cfg.WorkingDir, "/"),
+		Env:        env,
 		ExtraFlags: strings.Split(strings.TrimSpace(opts.RunProotFlags), " "),
 		MixedMode:  true,
 		TmpDir:     opts.Workdir,
@@ -114,7 +94,7 @@ func (opts *CommandOptions) run() error {
 	}
 
 	// add volumes & mounts
-	prootConf.Mounts = slices.Concat(opts.RunMounts, ignores)
+	prootConf.Binds = slices.Concat(opts.RunProotBinds, ignores)
 	for v := range cfg.Volumes {
 		oldpath := filepath.Join(opts.RootFS, v)
 		newpath := filepath.Join(defaultCacheDir(), fmt.Sprintf("vol_%s_%s", name, util.Slugify(v)))
@@ -124,22 +104,8 @@ func (opts *CommandOptions) run() error {
 			}
 		}
 		f := newpath + ":" + v
-		prootConf.Mounts = append(prootConf.Mounts, f)
+		prootConf.Binds = append(prootConf.Binds, f)
 	}
-
-	// add command
-	shell := util.Coalesce(util.CleanList(cfg.Shell), []string{"/bin/sh", "-c"})
-	var args []string
-	if len(opts.RunEntrypoint) > 0 {
-		args = append(opts.RunEntrypoint[len(opts.RunEntrypoint)-1:], opts.Cmd...)
-	} else {
-		args = append(
-			util.CleanList(cfg.Entrypoint),
-			util.Coalesce(util.CleanList(opts.Cmd), util.CleanList(cfg.Cmd))...,
-		)
-	}
-	args = append([]string{"exec"}, util.Coalesce(util.CleanList(args), shell[:1])...)
-	prootConf.Command = util.CleanList(append(shell, strings.Join(args, " ")))
 
 	// Create the proot command and run it
 	cmd := prootConf.Cmd()

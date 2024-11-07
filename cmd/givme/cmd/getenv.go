@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (opts *CommandOptions) getenv() error {
+func (opts *CommandOptions) Getenv() error {
 	logrus.Infof("Loading image for %s", opts.Image)
 
 	imageSlug, err := image.GetNameSlug(opts.Image)

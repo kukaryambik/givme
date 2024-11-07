@@ -7,7 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (opts *CommandOptions) save() (*image.Image, error) {
+func (opts *CommandOptions) Save() (*image.Image, error) {
 
 	logrus.Infof("Loading image for %s", opts.Image)
 

@@ -25,22 +25,23 @@ var (
 
 type CommandOptions struct {
 	Cmd              []string
+	Cwd              string
+	Entrypoint       []string
 	IgnorePaths      []string `mapstructure:"ignore"`
 	Image            string
-	LogFormat        string   `mapstructure:"log-format"`
-	LogLevel         string   `mapstructure:"log-level"`
-	LogTimestamp     bool     `mapstructure:"log-timestamp"`
-	NoPurge          bool     `mapstructure:"no-purge"`
-	OverwriteEnv     bool     `mapstructure:"overwrite-env"`
-	RegistryMirror   string   `mapstructure:"registry-mirror"`
-	RegistryPassword string   `mapstructure:"registry-password"`
-	RegistryUsername string   `mapstructure:"registry-username"`
-	RootFS           string   `mapstructure:"rootfs"`
-	RunChangeID      string   `mapstructure:"change-id"`
-	RunCwd           string   `mapstructure:"cwd"`
-	RunEntrypoint    []string `mapstructure:"entrypoint"`
+	LogFormat        string `mapstructure:"log-format"`
+	LogLevel         string `mapstructure:"log-level"`
+	LogTimestamp     bool   `mapstructure:"log-timestamp"`
+	NoPurge          bool
+	OverwriteEnv     bool
+	RegistryMirror   string `mapstructure:"registry-mirror"`
+	RegistryPassword string `mapstructure:"registry-password"`
+	RegistryUsername string `mapstructure:"registry-username"`
+	RootFS           string `mapstructure:"rootfs"`
+	RunChangeID      string
 	RunName          string
-	RunMounts        []string `mapstructure:"mount"`
+	RunProotBinds    []string `mapstructure:"proot-bind"`
+	RunProotBin      string   `mapstructure:"proot-bin"`
 	RunProotFlags    string   `mapstructure:"proot-flags"`
 	RunRemoveAfter   bool
 	TarFile          string
@@ -50,11 +51,10 @@ type CommandOptions struct {
 
 // Command Options with default values
 var opts = &CommandOptions{
-	LogFormat:   logging.FormatColor,
-	LogLevel:    logging.DefaultLevel,
-	RunChangeID: "0:0",
-	RootFS:      "/",
-	Workdir:     filepath.Join("/tmp", AppName),
+	LogFormat: logging.FormatColor,
+	LogLevel:  logging.DefaultLevel,
+	RootFS:    "/",
+	Workdir:   filepath.Join("/tmp", AppName),
 }
 
 var (
@@ -123,7 +123,7 @@ func init() {
 		)
 	},
 		// Add them to the list of subcommands
-		saveCmd, applyCmd, runCmd, getenvCmd,
+		saveCmd, applyCmd, runCmd, getenvCmd, extractCmd, execCmd,
 	)
 	// --update
 	mkFlags(func(cmd *cobra.Command) {
@@ -131,7 +131,7 @@ func init() {
 			&opts.Update, "update", opts.Update, "Update the image instead of using existing file")
 	},
 		// Add them to the list of subcommands
-		applyCmd, runCmd,
+		applyCmd, runCmd, extractCmd, execCmd,
 	)
 	// --overwrite-env
 	mkFlags(func(cmd *cobra.Command) {
@@ -139,20 +139,32 @@ func init() {
 			&opts.OverwriteEnv, "overwrite-env", opts.OverwriteEnv, "Overwrite current environment variables with new ones from the image")
 	},
 		// Add them to the list of subcommands
-		applyCmd, runCmd,
+		applyCmd, runCmd, execCmd,
+	)
+	// --no-purge
+	mkFlags(func(cmd *cobra.Command) {
+		cmd.Flags().BoolVar(
+			&opts.NoPurge, "no-purge", opts.NoPurge, "Do not purge the root directory before unpacking the image")
+	},
+		// Add them to the list of subcommands
+		applyCmd, execCmd,
 	)
 
-	applyCmd.Flags().BoolVar(
-		&opts.NoPurge, "no-purge", opts.NoPurge, "Do not purge the root directory before unpacking the image")
+	// --entrypoint, --cwd
+	mkFlags(func(cmd *cobra.Command) {
+		cmd.Flags().StringArrayVar(
+			&opts.Entrypoint, "entrypoint", opts.Entrypoint, "Entrypoint for the container")
+		cmd.Flags().StringVarP(
+			&opts.Cwd, "cwd", "w", opts.Cwd, "Working directory for the container")
+	},
+		// Add them to the list of subcommands
+		runCmd, execCmd,
+	)
 
-	runCmd.Flags().StringArrayVar(
-		&opts.RunEntrypoint, "entrypoint", opts.RunEntrypoint, "Entrypoint for the container")
-	runCmd.Flags().StringVarP(
-		&opts.RunCwd, "cwd", "w", opts.RunCwd, "Working directory for the container")
-	runCmd.Flags().StringArrayVar(
-		&opts.RunMounts, "mount", opts.RunMounts, "Mount host path to the container")
 	runCmd.Flags().StringVarP(
 		&opts.RunChangeID, "change-id", "u", opts.RunChangeID, "UID:GID for the container")
+	runCmd.Flags().StringArrayVarP(
+		&opts.RunProotBinds, "proot-bind", "b", opts.RunProotBinds, "Mount host path to the container")
 	runCmd.Flags().BoolVar(
 		&opts.RunRemoveAfter, "rm", opts.RunRemoveAfter, "Remove the rootfs directory after running the command")
 	runCmd.Flags().StringVar(
@@ -160,6 +172,8 @@ func init() {
 	runCmd.Flags().StringVar(
 		&opts.RunProotFlags, "proot-flags", opts.RunProotFlags, "Additional flags for proot")
 	runCmd.Flags().MarkHidden("proot-flags")
+	runCmd.Flags().StringVar(
+		&opts.RunProotBin, "proot-bin", opts.RunProotBin, "Path to the proot binary")
 
 	// Initialize viper and bind flags to environment variables
 	viper.SetEnvPrefix(AppName) // Environment variables prefixed with GIVME_
@@ -168,10 +182,12 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(
-		purgeCmd,
 		applyCmd,
-		runCmd,
+		execCmd,
+		extractCmd,
 		getenvCmd,
+		purgeCmd,
+		runCmd,
 		saveCmd,
 		snapshotCmd,
 		versionCmd,
@@ -219,7 +235,7 @@ var snapshotCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		return opts.snapshot()
+		return opts.Snapshot()
 	},
 }
 
@@ -229,7 +245,7 @@ var purgeCmd = &cobra.Command{
 	Short:   "Purge the rootfs directory",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cmd.SilenceUsage = true
-		return opts.purge()
+		return opts.Purge()
 	},
 }
 
@@ -242,7 +258,7 @@ var saveCmd = &cobra.Command{
 		opts.Image = args[0]
 		opts.Update = true
 		cmd.SilenceUsage = true
-		img, err := opts.save()
+		img, err := opts.Save()
 		fmt.Println(img.File)
 		return err
 	},
@@ -250,13 +266,26 @@ var saveCmd = &cobra.Command{
 
 var getenvCmd = &cobra.Command{
 	Use:     "getenv [flags] IMAGE",
-	Aliases: []string{"e", "env"},
+	Aliases: []string{"env"},
 	Short:   "Get environment variables from image",
 	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
 		cmd.SilenceUsage = true
-		return opts.getenv()
+		return opts.Getenv()
+	},
+}
+
+var extractCmd = &cobra.Command{
+	Use:     "extract [flags] IMAGE",
+	Aliases: []string{"ex", "ext", "unpack"},
+	Short:   "Extract the image filesystem",
+	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
+	RunE: func(cmd *cobra.Command, args []string) error {
+		opts.Image = args[0]
+		cmd.SilenceUsage = true
+		_, err := opts.Extract()
+		return err
 	},
 }
 
@@ -264,12 +293,12 @@ var applyCmd = &cobra.Command{
 	Use:     "apply [flags] IMAGE",
 	Aliases: []string{"a", "an", "the"},
 	Example: fmt.Sprintf("source <(%s apply alpine)", AppName),
-	Short:   "Extract the container filesystem to the rootfs directory and update the environment",
+	Short:   "Extract the image filesystem and print prepared environment variables to stdout",
 	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts.Image = args[0]
 		cmd.SilenceUsage = true
-		_, err := opts.apply()
+		_, err := opts.Apply()
 		if err != nil {
 			fmt.Print("false")
 		}
@@ -286,7 +315,20 @@ var runCmd = &cobra.Command{
 		opts.Image = args[0]
 		opts.Cmd = args[1:]
 		cmd.SilenceUsage = true
-		return opts.run()
+		return opts.Run()
+	},
+}
+
+var execCmd = &cobra.Command{
+	Use:     "exec [flags] IMAGE [cmd]...",
+	Aliases: []string{"e"},
+	Short:   "Exec a command in the container",
+	Args:    cobra.MinimumNArgs(1), // Ensure exactly 1 argument is provided
+	RunE: func(cmd *cobra.Command, args []string) error {
+		opts.Image = args[0]
+		opts.Cmd = args[1:]
+		cmd.SilenceUsage = true
+		return opts.Exec()
 	},
 }
 

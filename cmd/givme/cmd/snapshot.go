@@ -18,7 +18,7 @@ var defaultSnapshotFile = sync.OnceValue(func() string { return "snapshot_" + ti
 
 // Snapshot creates a tar archive of the rootfs directory, excluding
 // the directories specified in buildExclusions.
-func (opts *CommandOptions) snapshot() error {
+func (opts *CommandOptions) Snapshot() error {
 	logrus.Info("Creating snapshot")
 
 	// Check if the file already exists.

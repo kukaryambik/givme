@@ -27,7 +27,7 @@ type ProotConf struct {
 	KillOnExit    bool     `flag:"kill-on-exit"` // Kill all processes on command exit.
 	Link2Symlink  bool     `flag:"link2symlink"` // Enable the link2symlink extension.
 	MixedMode     bool     // Disable the mixed-execution feature.
-	Mounts        []string `flag:"mount"`          // Make the content of *path* accessible in the guest rootfs.
+	Binds         []string `flag:"bind"`           // Make the content of *path* accessible in the guest rootfs.
 	Netcoop       bool     `flag:"netcoop"`        // Enable the network cooperation mode.
 	Ports         []string `flag:"port"`           // Map ports to others with the syntax as *string* "port_in:port_out".
 	RootFS        string   `flag:"rootfs"`         // Use *path* as the new guest root file-system, default is /.
@@ -67,7 +67,7 @@ func (cfg *ProotConf) Cmd() *exec.Cmd {
 	args = append(args, fmt.Sprintf("--mixed-mode %v", cfg.MixedMode))
 
 	// check UID:GID
-	expr, _ := regexp.Compile("^[0-9]+(:[0-9]+)?$")
+	expr := regexp.MustCompile(`^[0-9]+(:[0-9]+)?$`)
 	if !expr.MatchString(cfg.ChangeID) {
 		logrus.Warnf("UID:GID %s is not numeric", cfg.ChangeID)
 		cfg.ChangeID = ""

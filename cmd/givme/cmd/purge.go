@@ -7,7 +7,7 @@ import (
 
 // Cleanup removes files and directories in the target directory,
 // excluding the paths specified in excludes.
-func (opts *CommandOptions) purge() error {
+func (opts *CommandOptions) Purge() error {
 	logrus.Infof("Purging rootfs '%s'", opts.RootFS)
 
 	// Configure ignored paths

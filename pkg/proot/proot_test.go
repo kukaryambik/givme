@@ -65,10 +65,10 @@ func TestCmdWithEnv(t *testing.T) {
 	}
 }
 
-func TestCmdMountsAndPorts(t *testing.T) {
+func TestCmdBindsAndPorts(t *testing.T) {
 	cfg := &ProotConf{
 		BinPath: "proot",
-		Mounts: []string{
+		Binds: []string{
 			"/host/path1:/guest/path1",
 			"/host/path2:/guest/path2",
 		},
@@ -168,7 +168,7 @@ func TestCmdFullConfig(t *testing.T) {
 		Workdir:       "/tmp",
 		RootFS:        "/new/rootfs",
 		KernelRelease: "5.10.0",
-		Mounts: []string{
+		Binds: []string{
 			"/mnt/host1:/mnt/guest1",
 			"/mnt/host2:/mnt/guest2",
 		},

@@ -114,18 +114,16 @@ func Untar(src io.Reader, dst string, excl []string) error {
 
 // parallelProcess processes files in parallel
 func parallelProcess(hdrs *map[string]tar.Header, fn func(string, tar.Header) error) error {
-	numCPU := runtime.NumCPU()
-	sem := make(chan struct{}, numCPU)
+	sem := make(chan struct{}, runtime.GOMAXPROCS(0))
 	var g errgroup.Group
 
 	for name, hdr := range *hdrs {
 		name := name
 		hdr := hdr
 
-		sem <- struct{}{} // Acquire a semaphore slot
-
 		g.Go(
 			func() error {
+				sem <- struct{}{}        // Acquire a semaphore slot
 				defer func() { <-sem }() // Release the semaphore slot
 				return fn(name, hdr)
 			},

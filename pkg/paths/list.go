@@ -51,8 +51,7 @@ func GetList(path string, ignore []string, lst *[]string) error {
 		}
 
 		// Recursively process the contents of the directory
-		numCPU := runtime.NumCPU()
-		sem := make(chan struct{}, numCPU)
+		sem := make(chan struct{}, runtime.GOMAXPROCS(0))
 		var g errgroup.Group
 
 		for _, entry := range entries {

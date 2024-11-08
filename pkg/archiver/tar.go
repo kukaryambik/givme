@@ -6,10 +6,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sys/unix"
 )
 
 // fileIdentity uniquely identifies a file using device ID and inode number.
@@ -38,9 +38,9 @@ func newTarArchiver(absSrc string, absExcl []string, tarWriter *tar.Writer) *tar
 
 // getFileID retrieves the file identity based on its FileInfo.
 func (ta *tarArchiver) getFileID(fi os.FileInfo) (fileIdentity, error) {
-	stat, ok := fi.Sys().(*unix.Stat_t)
+	stat, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
-		return fileIdentity{}, fmt.Errorf("unable to get raw unix.Stat_t data for %s", fi.Name())
+		return fileIdentity{}, fmt.Errorf("unable to get raw syscall.Stat_t data for %s", fi.Name())
 	}
 	return fileIdentity{dev: uint64(stat.Dev), ino: uint64(stat.Ino)}, nil
 }
@@ -70,7 +70,7 @@ func (ta *tarArchiver) handleRegularFile(file string, fi os.FileInfo, relPath st
 		return nil
 	}
 
-	stat, ok := fi.Sys().(*unix.Stat_t)
+	stat, ok := fi.Sys().(*syscall.Stat_t)
 	if ok && stat.Nlink > 1 {
 		if original, exists := ta.addedFiles[id]; exists {
 			hdr.Typeflag = tar.TypeLink

@@ -4,10 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"testing"
 	"time"
-
-	"golang.org/x/sys/unix"
 )
 
 // Helper function to compare two directories recursively
@@ -256,10 +255,10 @@ func TestHardLinks(t *testing.T) {
 		t.Fatalf("Failed to stat hard link: %v", err)
 	}
 
-	originalSys, ok1 := originalInfo.Sys().(*unix.Stat_t)
-	hardLinkSys, ok2 := hardLinkInfo.Sys().(*unix.Stat_t)
+	originalSys, ok1 := originalInfo.Sys().(*syscall.Stat_t)
+	hardLinkSys, ok2 := hardLinkInfo.Sys().(*syscall.Stat_t)
 	if !ok1 || !ok2 {
-		t.Fatalf("Failed to get raw unix.Stat_t data")
+		t.Fatalf("Failed to get raw syscall.Stat_t data")
 	}
 
 	if originalSys.Ino != hardLinkSys.Ino {
@@ -400,9 +399,9 @@ func TestOwnership(t *testing.T) {
 		t.Fatalf("Failed to stat extracted file: %v", err)
 	}
 
-	stat, ok := info.Sys().(*unix.Stat_t)
+	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok {
-		t.Fatalf("Failed to get raw unix.Stat_t data")
+		t.Fatalf("Failed to get raw syscall.Stat_t data")
 	}
 
 	if int(stat.Uid) != 1000 || int(stat.Gid) != 1000 {
@@ -619,7 +618,7 @@ func TestSpecialFiles(t *testing.T) {
 
 	// Create a named pipe (FIFO)
 	pipePath := filepath.Join(srcDir, "mypipe")
-	err := unix.Mkfifo(pipePath, 0644)
+	err := syscall.Mkfifo(pipePath, 0644)
 	if err != nil {
 		t.Fatalf("Failed to create FIFO: %v", err)
 	}

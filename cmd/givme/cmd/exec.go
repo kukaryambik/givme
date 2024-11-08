@@ -2,11 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"syscall"
 
+	"github.com/kukaryambik/givme/pkg/envars"
 	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"golang.org/x/sys/unix"
 )
 
 func ExecCmd() *cobra.Command {
@@ -62,10 +63,16 @@ func (opts *CommandOptions) Exec() error {
 	}
 
 	// Change the working directory
-	if err := unix.Chdir(util.Coalesce(opts.Cwd, cfg.Config.WorkingDir, "/")); err != nil {
+	if err := syscall.Chdir(util.Coalesce(opts.Cwd, cfg.Config.WorkingDir, "/")); err != nil {
 		return fmt.Errorf("invalid working directory %q: %v", opts.Cwd, err)
 	}
 
+	// Set the entrypoint
+	entrypoint, err := envars.CoalesceWhich(env, command[0])
+	if err != nil {
+		return err
+	}
+
 	// Run the command
-	return unix.Exec(command[0], command, env)
+	return syscall.Exec(entrypoint, command, env)
 }

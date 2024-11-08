@@ -3,11 +3,45 @@ package envars
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
+	"github.com/kukaryambik/givme/pkg/util"
 )
+
+func Getenv(s []string, key string) string {
+	p := slices.IndexFunc(s, func(s string) bool {
+		return strings.HasPrefix(s, key+"=")
+	})
+	if p > -1 {
+		return strings.TrimPrefix(s[p], key+"=")
+	}
+	return ""
+}
+
+func CoalesceWhich(env []string, cmds ...string) (string, error) {
+	oldPath := os.Getenv("PATH")
+	pathFromEnv := Getenv(env, "PATH")
+	if pathFromEnv == "" {
+		return "", fmt.Errorf("failed to find PATH in env: %v", env)
+	}
+	os.Setenv("PATH", pathFromEnv)
+	defer os.Setenv("PATH", oldPath)
+
+	var paths []string
+	for _, cmd := range cmds {
+		path, _ := exec.LookPath(cmd)
+		paths = append(paths, path)
+	}
+	firstPath := util.Coalesce(paths...)
+	if firstPath == "" {
+		return "", fmt.Errorf("commands not found: %v", cmds)
+	}
+	return firstPath, nil
+}
 
 func FromFile(new map[string]string, file string, overwrite bool) (map[string]string, error) {
 	// Reading variables from file
@@ -53,7 +87,7 @@ func ToSlice(quote bool, m map[string]string) []string {
 func Uniq(duplicates bool, x, y map[string]string) map[string]string {
 	z := make(map[string]string, len(x))
 	for xKey, xVal := range x {
-		if yVal, yKeyExists := y[xKey]; yKeyExists == duplicates && (!yKeyExists || xVal == yVal) {
+		if yVal, yKeyExists := y[xKey]; (yKeyExists && xVal == yVal) == duplicates {
 			z[xKey] = xVal
 		}
 	}

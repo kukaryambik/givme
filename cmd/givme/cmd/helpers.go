@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"syscall"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/kukaryambik/givme/pkg/envars"
@@ -16,7 +17,7 @@ import (
 // If the image has no entrypoint, it defaults to /bin/sh.
 // If the image has no command, it defaults to the command provided.
 func (opts *CommandOptions) PrepareEntrypoint(cfg *v1.Config) []string {
-	shell := util.Coalesce(util.CleanList(cfg.Shell), []string{"/bin/sh"})
+	shell := util.Coalesce(util.CleanList(cfg.Shell), []string{"/bin/sh", "-c"})
 
 	var cmd []string
 	if len(opts.Entrypoint) > 0 {
@@ -30,7 +31,9 @@ func (opts *CommandOptions) PrepareEntrypoint(cfg *v1.Config) []string {
 		)
 	}
 
-	return util.Coalesce(util.CleanList(cmd), shell[:1])
+	entrypoint := util.Coalesce(util.CleanList(cmd), shell[:1])
+	logrus.Debugf("Entrypoint: %v", entrypoint)
+	return entrypoint
 }
 
 // PrepareEnvForEval prepares the environment variables for the eval command
@@ -59,7 +62,9 @@ func (opts *CommandOptions) PrepareEnvForEval(cfg *v1.Config, saveToFile bool) (
 		setStr = fmt.Sprintf("export %s;\n", strings.Join(envars.ToSlice(true, setEnv), " "))
 	}
 
-	return strings.TrimSpace(unsetStr + setStr), nil
+	env := strings.TrimSpace(unsetStr + setStr)
+	logrus.Debugf("Environment variables for eval:\n%s", env)
+	return env, nil
 }
 
 // PrepareEnvForExec prepares the environment variables for the exec command
@@ -99,7 +104,10 @@ func (opts *CommandOptions) PrepareEnvForExec(cfg *v1.Config) ([]string, error) 
 
 	// Set the PATH environment variable to include the path to the current executable
 	env["PATH"] = strings.Trim(imageEnv["PATH"]+":"+util.GetExecDir(), ": ")
+	syscall.Setenv("PATH", env["PATH"])
 
 	// Format the environment variables as a slice of strings
-	return envars.ToSlice(false, env), nil
+	envSlice := envars.ToSlice(false, env)
+	logrus.Debugf("Environment variables for exec: %q", envSlice)
+	return envSlice, nil
 }

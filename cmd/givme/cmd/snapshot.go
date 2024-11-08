@@ -33,7 +33,7 @@ func SnapshotCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&opts.TarFile, "tar-file", "f", defaultTarPath, "Path to the tar file")
+	cmd.Flags().StringVarP(&opts.TarFile, "tar-file", "f", "", "Path to the tar file")
 	cmd.MarkFlagFilename("tar-file", ".tar")
 
 	return cmd
@@ -43,6 +43,10 @@ func SnapshotCmd() *cobra.Command {
 // the directories specified in buildExclusions.
 func (opts *CommandOptions) Snapshot() error {
 	logrus.Info("Creating snapshot")
+
+	if opts.TarFile == "" {
+		opts.TarFile = defaultTarPath
+	}
 
 	// Check if the file already exists.
 	if paths.FileExists(opts.TarFile) {

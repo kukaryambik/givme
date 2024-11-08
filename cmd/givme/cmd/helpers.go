@@ -8,6 +8,7 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/kukaryambik/givme/pkg/envars"
 	"github.com/kukaryambik/givme/pkg/util"
+	"github.com/sirupsen/logrus"
 )
 
 // PrepareEntrypoint prepares the command to run in the container.
@@ -70,8 +71,17 @@ func (opts *CommandOptions) PrepareEnvForExec(cfg *v1.Config) ([]string, error) 
 	currentEnv := envars.ToMap(os.Environ())
 	// Get the environment variables from the image
 	imageEnv := envars.ToMap(cfg.Env)
+
+	// Check if the parent process is the same as the current process
+	var save bool
+	pname, _ := util.GetParentProcessName()
+	logrus.Debugf("Parent process name: %s", pname)
+	if pname == "" {
+		save = true
+	}
+
 	// Get the environment variables saved in the file
-	savedEnv, err := envars.FromFile(imageEnv, defaultDotEnvFile(), false)
+	savedEnv, err := envars.FromFile(imageEnv, defaultDotEnvFile(), save)
 	if err != nil {
 		return nil, err
 	}

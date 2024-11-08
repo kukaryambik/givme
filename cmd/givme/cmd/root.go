@@ -126,6 +126,7 @@ var rootCmd = &cobra.Command{
 	Use:   AppName,
 	Short: fmt.Sprintf("%s - Switch the image from inside the container", AppName),
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+
 		// Set variables from flags or environment
 		viper.BindPFlags(cmd.Flags())
 		viper.Unmarshal(&opts)

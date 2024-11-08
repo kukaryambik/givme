@@ -27,9 +27,10 @@ func FromFile(new map[string]string, file string, overwrite bool) (map[string]st
 
 // ToMap parsing environment variables into a map
 func ToMap(env []string) map[string]string {
-	envMap := make(map[string]string)
+	envMap := make(map[string]string, len(env))
 	for _, e := range env {
-		if kv := strings.SplitN(e, "=", 2); len(kv) == 2 {
+		kv := strings.SplitN(e, "=", 2)
+		if len(kv) == 2 {
 			envMap[kv[0]] = kv[1]
 		}
 	}
@@ -38,7 +39,7 @@ func ToMap(env []string) map[string]string {
 
 // ToSlice converting map into a slice of strings
 func ToSlice(quote bool, m map[string]string) []string {
-	var slice []string
+	slice := make([]string, 0, len(m))
 	for k, v := range m {
 		if quote {
 			v = strconv.Quote(v)
@@ -50,9 +51,9 @@ func ToSlice(quote bool, m map[string]string) []string {
 
 // Uniq returns environment variables unique for x or duplicates
 func Uniq(duplicates bool, x, y map[string]string) map[string]string {
-	z := make(map[string]string)
+	z := make(map[string]string, len(x))
 	for xKey, xVal := range x {
-		if yVal, yKeyExists := y[xKey]; (yKeyExists && xVal == yVal) == duplicates {
+		if yVal, yKeyExists := y[xKey]; yKeyExists == duplicates && (!yKeyExists || xVal == yVal) {
 			z[xKey] = xVal
 		}
 	}
@@ -61,10 +62,10 @@ func Uniq(duplicates bool, x, y map[string]string) map[string]string {
 
 // UniqKeys returns environment variables from x that are not present in y
 func UniqKeys(x, y map[string]string) map[string]string {
-	z := make(map[string]string)
-	for xKey := range x {
-		if _, exists := y[xKey]; !exists {
-			z[xKey] = x[xKey]
+	z := make(map[string]string, len(x))
+	for k, v := range x {
+		if _, exists := y[k]; !exists {
+			z[k] = v
 		}
 	}
 	return z
@@ -72,7 +73,7 @@ func UniqKeys(x, y map[string]string) map[string]string {
 
 // Merge merges maps
 func Merge(maps ...map[string]string) map[string]string {
-	z := make(map[string]string)
+	z := make(map[string]string, len(maps)*(len(maps[0])/2))
 	for _, m := range maps {
 		for k, v := range m {
 			z[k] = v

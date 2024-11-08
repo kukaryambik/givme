@@ -8,7 +8,24 @@ import (
 	"github.com/kukaryambik/givme/pkg/envars"
 	"github.com/kukaryambik/givme/pkg/image"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
+
+func getenvCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "getenv [flags] IMAGE",
+		Aliases: []string{"env"},
+		Short:   "Get environment variables from image",
+		Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
+		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.Image = args[0]
+			cmd.SilenceUsage = true
+			return opts.Getenv()
+		},
+	}
+
+	return cmd
+}
 
 func (opts *CommandOptions) Getenv() error {
 	logrus.Infof("Loading image for %s", opts.Image)

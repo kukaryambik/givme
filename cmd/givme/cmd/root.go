@@ -10,7 +10,6 @@ import (
 	"github.com/kukaryambik/givme/pkg/logging"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -71,19 +70,6 @@ func Execute() {
 	}
 }
 
-func AddFlag(c func(*pflag.FlagSet), l ...*cobra.Command) {
-	for _, cmd := range l {
-		c(cmd.Flags())
-	}
-}
-
-func mkFlags(c func(*cobra.Command), l ...*cobra.Command) {
-	for _, cmd := range l {
-		c(cmd)
-		cmd.Flags()
-	}
-}
-
 func init() {
 	a := strings.ToUpper(AppName)
 
@@ -123,50 +109,6 @@ func init() {
 	cmd.MarkFlagFilename("tar-file", ".tar")
 	// saveCmd,
 
-	// --update
-	mkFlags(func(cmd *cobra.Command) {
-		cmd.Flags().BoolVar(
-			&opts.Update, "update", opts.Update, "Update the image instead of using existing file")
-	},
-		// Add them to the list of subcommands
-		runCmd, extractCmd,
-	)
-
-	// --overwrite-env
-	mkFlags(func(cmd *cobra.Command) {
-		cmd.Flags().BoolVar(
-			&opts.OverwriteEnv, "overwrite-env", opts.OverwriteEnv, "Overwrite current environment variables with new ones from the image")
-	},
-		// Add them to the list of subcommands
-		runCmd,
-	)
-
-	// --entrypoint, --cwd
-	mkFlags(func(cmd *cobra.Command) {
-		cmd.Flags().StringArrayVar(
-			&opts.Entrypoint, "entrypoint", opts.Entrypoint, "Entrypoint for the container")
-		cmd.Flags().StringVarP(
-			&opts.Cwd, "cwd", "w", opts.Cwd, "Working directory for the container")
-	},
-		// Add them to the list of subcommands
-		runCmd,
-	)
-
-	runCmd.Flags().StringVarP(&opts.RunChangeID, "change-id", "u", opts.RunChangeID, "UID:GID for the container")
-	runCmd.Flags().StringArrayVarP(
-		&opts.RunProotBinds, "proot-bind", "b", opts.RunProotBinds, "Mount host path to the container")
-	rootCmd.Flags().AddFlag(cmd.Flag("proot-bind"))
-
-	runCmd.Flags().BoolVar(
-		&opts.RunRemoveAfter, "rm", opts.RunRemoveAfter, "Remove the rootfs directory after running the command")
-	runCmd.Flags().StringVar(
-		&opts.RunName, "name", opts.RunName, "The name of the container")
-	runCmd.Flags().StringVar(
-		&opts.RunProotFlags, "proot-flags", opts.RunProotFlags, "Additional flags for proot")
-	runCmd.Flags().MarkHidden("proot-flags")
-	runCmd.Flags().StringVar(
-		&opts.RunProotBin, "proot-bin", opts.RunProotBin, "Path to the proot binary")
-
 	// Initialize viper and bind flags to environment variables
 	viper.SetEnvPrefix(AppName) // Environment variables prefixed with GIVME_
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
@@ -176,11 +118,11 @@ func init() {
 	rootCmd.AddCommand(
 		ApplyCmd(),
 		ExecCmd(),
-		extractCmd,
-		getenvCmd,
-		purgeCmd,
-		runCmd,
-		saveCmd,
+		extractCmd(),
+		getenvCmd(),
+		PurgeCmd(),
+		RunCmd(),
+		SaveCmd(),
 		SnapshotCmd(),
 		versionCmd,
 	)
@@ -212,69 +154,6 @@ var rootCmd = &cobra.Command{
 		}
 
 		return nil
-	},
-}
-
-var purgeCmd = &cobra.Command{
-	Use:     "purge",
-	Aliases: []string{"p", "clear"},
-	Short:   "Purge the rootfs directory",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cmd.SilenceUsage = true
-		return opts.Purge()
-	},
-}
-
-var saveCmd = &cobra.Command{
-	Use:     "save [flags] IMAGE",
-	Aliases: []string{"download", "pull"},
-	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
-	Short:   "Save image to tar archive",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		opts.Image = args[0]
-		opts.Update = true
-		cmd.SilenceUsage = true
-		img, err := opts.Save()
-		fmt.Println(img.File)
-		return err
-	},
-}
-
-var getenvCmd = &cobra.Command{
-	Use:     "getenv [flags] IMAGE",
-	Aliases: []string{"env"},
-	Short:   "Get environment variables from image",
-	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
-	RunE: func(cmd *cobra.Command, args []string) error {
-		opts.Image = args[0]
-		cmd.SilenceUsage = true
-		return opts.Getenv()
-	},
-}
-
-var extractCmd = &cobra.Command{
-	Use:     "extract [flags] IMAGE",
-	Aliases: []string{"ex", "ext", "unpack"},
-	Short:   "Extract the image filesystem",
-	Args:    cobra.ExactArgs(1), // Ensure exactly 1 argument is provided
-	RunE: func(cmd *cobra.Command, args []string) error {
-		opts.Image = args[0]
-		cmd.SilenceUsage = true
-		_, err := opts.Extract()
-		return err
-	},
-}
-
-var runCmd = &cobra.Command{
-	Use:     "run [flags] IMAGE [cmd]...",
-	Aliases: []string{"r", "proot"},
-	Short:   "Run a command in the container",
-	Args:    cobra.MinimumNArgs(1), // Ensure exactly 1 argument is provided
-	RunE: func(cmd *cobra.Command, args []string) error {
-		opts.Image = args[0]
-		opts.Cmd = args[1:]
-		cmd.SilenceUsage = true
-		return opts.Run()
 	},
 }
 

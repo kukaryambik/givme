@@ -14,7 +14,47 @@ import (
 	"github.com/kukaryambik/givme/pkg/proot"
 	"github.com/kukaryambik/givme/pkg/util"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
+
+func RunCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "run [flags] IMAGE [cmd]...",
+		Aliases: []string{"r", "proot"},
+		Short:   "Run a command in the container",
+		Args:    cobra.MinimumNArgs(1), // Ensure exactly 1 argument is provided
+		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.Image = args[0]
+			opts.Cmd = args[1:]
+			cmd.SilenceUsage = true
+			return opts.Run()
+		},
+	}
+
+	cmd.Flags().BoolVar(
+		&opts.Update, "update", opts.Update, "Update the image instead of using existing file")
+	cmd.Flags().BoolVar(
+		&opts.OverwriteEnv, "overwrite-env", opts.OverwriteEnv, "Overwrite current environment variables with new ones from the image")
+	cmd.Flags().StringArrayVar(
+		&opts.Entrypoint, "entrypoint", opts.Entrypoint, "Entrypoint for the container")
+	cmd.Flags().StringVarP(
+		&opts.Cwd, "cwd", "w", opts.Cwd, "Working directory for the container")
+	cmd.Flags().StringVarP(&opts.RunChangeID, "change-id", "u", opts.RunChangeID, "UID:GID for the container")
+	cmd.Flags().StringArrayVarP(
+		&opts.RunProotBinds, "proot-bind", "b", opts.RunProotBinds, "Mount host path to the container")
+	cmd.Flags().AddFlag(cmd.Flag("proot-bind"))
+	cmd.Flags().BoolVar(
+		&opts.RunRemoveAfter, "rm", opts.RunRemoveAfter, "Remove the rootfs directory after running the command")
+	cmd.Flags().StringVar(
+		&opts.RunName, "name", opts.RunName, "The name of the container")
+	cmd.Flags().StringVar(
+		&opts.RunProotFlags, "proot-flags", opts.RunProotFlags, "Additional flags for proot")
+	cmd.Flags().MarkHidden("proot-flags")
+	cmd.Flags().StringVar(
+		&opts.RunProotBin, "proot-bin", opts.RunProotBin, "Path to the proot binary")
+
+	return cmd
+}
 
 func (opts *CommandOptions) Run() error {
 

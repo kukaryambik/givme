@@ -82,34 +82,54 @@ func Untar(src io.Reader, dst string, excl []string) error {
 		}
 	}
 
+	processExceptDirs := func(name string, hdr tar.Header) error {
+		switch hdr.Typeflag {
+		case tar.TypeReg:
+			restorePerm(name, &hdr)
+			return nil
+		case tar.TypeLink:
+			return processLinks(&hdr, absDst, name)
+		case tar.TypeSymlink:
+			return processSymlinks(&hdr, name)
+		default:
+			return nil
+		}
+	}
+	if err := parallelProcess(&hdrs, processExceptDirs); err != nil {
+		return err
+	}
+
+	processDirs := func(name string, hdr tar.Header) error {
+		if hdr.Typeflag == tar.TypeDir {
+			restorePerm(name, &hdr)
+		}
+		return nil
+	}
+	if err := parallelProcess(&hdrs, processDirs); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// parallelProcess processes files in parallel
+func parallelProcess(hdrs *map[string]tar.Header, fn func(string, tar.Header) error) error {
 	numCPU := runtime.NumCPU()
 	sem := make(chan struct{}, numCPU)
 	var g errgroup.Group
 
-	for name, hdr := range hdrs {
+	for name, hdr := range *hdrs {
 		name := name
 		hdr := hdr
 
 		sem <- struct{}{} // Acquire a semaphore slot
 
-		g.Go(func() error {
-			defer func() { <-sem }() // Release the semaphore slot
-
-			switch hdr.Typeflag {
-			case tar.TypeDir:
-				restorePerm(name, &hdr)
-				return nil
-			case tar.TypeReg:
-				restorePerm(name, &hdr)
-				return nil
-			case tar.TypeLink:
-				return processLinks(&hdr, absDst, name)
-			case tar.TypeSymlink:
-				return processSymlinks(&hdr, name)
-			default:
-				return nil
-			}
-		})
+		g.Go(
+			func() error {
+				defer func() { <-sem }() // Release the semaphore slot
+				return fn(name, hdr)
+			},
+		)
 	}
 
 	if err := g.Wait(); err != nil {

@@ -10,63 +10,86 @@ import (
 	"github.com/kukaryambik/givme/pkg/util"
 )
 
+// PrepareEntrypoint prepares the command to run in the container.
+// If opts.Entrypoint is provided, it overrides the entrypoint from the image.
+// If the image has no entrypoint, it defaults to /bin/sh.
+// If the image has no command, it defaults to the command provided.
 func (opts *CommandOptions) PrepareEntrypoint(cfg *v1.Config) []string {
-	shell := util.Coalesce(util.CleanList(cfg.Shell), []string{"/bin/sh", "-c"})
-	var args []string
+	shell := util.Coalesce(util.CleanList(cfg.Shell), []string{"/bin/sh"})
+
+	var cmd []string
 	if len(opts.Entrypoint) > 0 {
-		args = append(opts.Entrypoint[len(opts.Entrypoint)-1:], opts.Cmd...)
+		// If Entrypoint is provided, use the last element as the executable and append the remaining arguments.
+		cmd = append(opts.Entrypoint[len(opts.Entrypoint)-1:], opts.Cmd...)
 	} else {
-		args = append(
+		// If Entrypoint is not provided, use the image's entrypoint and command.
+		cmd = append(
 			util.CleanList(cfg.Entrypoint),
 			util.Coalesce(util.CleanList(opts.Cmd), util.CleanList(cfg.Cmd))...,
 		)
 	}
-	args = append([]string{"exec"}, util.Coalesce(util.CleanList(args), shell[:1])...)
-	return util.CleanList(append(shell, strings.Join(args, " ")))
+
+	return util.Coalesce(util.CleanList(cmd), shell[:1])
 }
 
-// prepareEnvForEval prepares the environment variables for the eval command
+// PrepareEnvForEval prepares the environment variables for the eval command
+// If opts.OverwriteEnv is true, it overwrites the existing environment variables.
 func (opts *CommandOptions) PrepareEnvForEval(cfg *v1.Config, saveToFile bool) (string, error) {
-	current := envars.ToMap(os.Environ())
-	new := envars.ToMap(cfg.Env)
-	old, err := envars.FromFile(new, defaultDotEnvFile(), saveToFile)
+	currentEnv := envars.ToMap(os.Environ())
+	imgEnv := envars.ToMap(cfg.Env)
+	oldEnv, err := envars.FromFile(imgEnv, defaultDotEnvFile(), saveToFile)
 	if err != nil {
 		return "", err
 	}
 
-	unset := envars.Uniq(true, old, current)
-	set := envars.Merge(make(map[string]string), new)
+	unsetEnv := envars.Uniq(true, oldEnv, currentEnv)
+	setEnv := envars.Merge(make(map[string]string), imgEnv)
 	if !opts.OverwriteEnv {
-		set = envars.UniqKeys(new, envars.Uniq(false, current, old))
+		setEnv = envars.UniqKeys(imgEnv, envars.Uniq(false, currentEnv, oldEnv))
 	}
-	set["PATH"] = strings.Trim(new["PATH"]+":"+util.GetExecDir(), ": ")
+	setEnv["PATH"] = strings.Trim(imgEnv["PATH"]+":"+util.GetExecDir(), ": ")
 
-	var unsetStr, setStr string
-	if len(unset) > 0 {
-		unsetStr = "unset " + strings.Join(envars.ToSlice(true, unset), " ") + ";"
+	unsetStr := ""
+	if len(unsetEnv) > 0 {
+		unsetStr = fmt.Sprintf("unset %s;\n", strings.Join(envars.ToSlice(true, unsetEnv), " "))
 	}
-	if len(set) > 0 {
-		setStr = "export " + strings.Join(envars.ToSlice(true, set), " ") + ";"
+	setStr := ""
+	if len(setEnv) > 0 {
+		setStr = fmt.Sprintf("export %s;\n", strings.Join(envars.ToSlice(true, setEnv), " "))
 	}
 
-	return strings.TrimSpace(fmt.Sprintf("%s\n%s", unsetStr, setStr)), nil
+	return strings.TrimSpace(unsetStr + setStr), nil
 }
 
-// prepareEnvForExec prepares the environment variables for the exec command
+// PrepareEnvForExec prepares the environment variables for the exec command
+// It takes the current environment variables, the environment variables from the image,
+// and the saved environment variables from the previous image, and returns a slice of strings
+// that can be used as environment variables for the exec command.
 func (opts *CommandOptions) PrepareEnvForExec(cfg *v1.Config) ([]string, error) {
-	current := envars.ToMap(os.Environ())
-	new := envars.ToMap(cfg.Env)
-	old, err := envars.FromFile(new, defaultDotEnvFile(), false)
+	// Get the current environment variables
+	currentEnv := envars.ToMap(os.Environ())
+	// Get the environment variables from the image
+	imageEnv := envars.ToMap(cfg.Env)
+	// Get the environment variables saved in the file
+	savedEnv, err := envars.FromFile(imageEnv, defaultDotEnvFile(), false)
 	if err != nil {
 		return nil, err
 	}
 
-	diff := envars.Uniq(false, current, old)
-	env := envars.Merge(new, diff)
-	if opts.OverwriteEnv {
-		env = envars.Merge(diff, new)
-	}
-	env["PATH"] = strings.Trim(new["PATH"]+":"+util.GetExecDir(), ": ")
+	// Calculate the difference between the current environment and the saved environment
+	// This is used to determine which environment variables to set.
+	diff := envars.Uniq(false, currentEnv, savedEnv)
 
+	// If opts.OverwriteEnv is true, use the environment variables from the image
+	// Otherwise, use the environment variables from the saved environment.
+	env := envars.Merge(imageEnv, diff)
+	if opts.OverwriteEnv {
+		env = envars.Merge(diff, imageEnv)
+	}
+
+	// Set the PATH environment variable to include the path to the current executable
+	env["PATH"] = strings.Trim(imageEnv["PATH"]+":"+util.GetExecDir(), ": ")
+
+	// Format the environment variables as a slice of strings
 	return envars.ToSlice(false, env), nil
 }

@@ -97,22 +97,11 @@ func init() {
 
 	// Logging flags
 	rootCmd.PersistentFlags().StringVarP(
-		&opts.LogLevel, "verbosity", "v", "", "Log level (trace, debug, info, warn, error, fatal, panic)")
+		&opts.LogLevel, "verbosity", "v", opts.LogLevel, "Log level (trace, debug, info, warn, error, fatal, panic)")
 	rootCmd.PersistentFlags().StringVar(
 		&opts.LogFormat, "log-format", opts.LogFormat, "Log format (text, color, json)")
 	rootCmd.PersistentFlags().BoolVar(
 		&opts.LogTimestamp, "log-timestamp", opts.LogTimestamp, "Timestamp in log output")
-
-	var cmd *cobra.Command
-	// Subcommand flags
-	cmd.Flags().StringVarP(&opts.TarFile, "tar-file", "f", "", "Path to the tar file")
-	cmd.MarkFlagFilename("tar-file", ".tar")
-	// saveCmd,
-
-	// Initialize viper and bind flags to environment variables
-	viper.SetEnvPrefix(AppName) // Environment variables prefixed with GIVME_
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	viper.AutomaticEnv() // Automatically bind environment variables
 
 	// Add subcommands
 	rootCmd.AddCommand(
@@ -126,6 +115,11 @@ func init() {
 		SnapshotCmd(),
 		versionCmd,
 	)
+
+	// Initialize viper and bind flags to environment variables
+	viper.SetEnvPrefix(AppName) // Environment variables prefixed with GIVME_
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.AutomaticEnv() // Automatically bind environment variables
 }
 
 var rootCmd = &cobra.Command{

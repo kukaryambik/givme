@@ -24,6 +24,10 @@ func SaveCmd() *cobra.Command {
 			return err
 		},
 	}
+
+	cmd.Flags().StringVarP(&opts.TarFile, "tar-file", "f", "", "Path to the tar file")
+	cmd.MarkFlagFilename("tar-file", ".tar")
+
 	return cmd
 }
 

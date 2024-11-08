@@ -42,7 +42,6 @@ func RunCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&opts.RunChangeID, "change-id", "u", opts.RunChangeID, "UID:GID for the container")
 	cmd.Flags().StringArrayVarP(
 		&opts.RunProotBinds, "proot-bind", "b", opts.RunProotBinds, "Mount host path to the container")
-	cmd.Flags().AddFlag(cmd.Flag("proot-bind"))
 	cmd.Flags().BoolVar(
 		&opts.RunRemoveAfter, "rm", opts.RunRemoveAfter, "Remove the rootfs directory after running the command")
 	cmd.Flags().StringVar(

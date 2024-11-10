@@ -1,12 +1,14 @@
-package proot
+package proot_test
 
 import (
 	"reflect"
 	"testing"
+
+	"github.com/kukaryambik/givme/pkg/proot"
 )
 
 func TestCmdBasic(t *testing.T) {
-	cfg := &ProotConf{
+	cfg := &proot.ProotConf{
 		BinPath:    "proot",
 		Command:    []string{"ls", "-la"},
 		MixedMode:  true,
@@ -35,7 +37,7 @@ func TestCmdBasic(t *testing.T) {
 }
 
 func TestCmdWithEnv(t *testing.T) {
-	cfg := &ProotConf{
+	cfg := &proot.ProotConf{
 		BinPath:               "proot",
 		DontPolluteRootfs:     true,
 		ForceForeignBinary:    true,
@@ -66,7 +68,7 @@ func TestCmdWithEnv(t *testing.T) {
 }
 
 func TestCmdBindsAndPorts(t *testing.T) {
-	cfg := &ProotConf{
+	cfg := &proot.ProotConf{
 		BinPath: "proot",
 		Binds: []string{
 			"/host/path1:/guest/path1",
@@ -83,8 +85,8 @@ func TestCmdBindsAndPorts(t *testing.T) {
 	expectedArgs := []string{
 		"proot",
 		"--mixed-mode false",
-		"--mount=/host/path1:/guest/path1",
-		"--mount=/host/path2:/guest/path2",
+		"--bind=/host/path1:/guest/path1",
+		"--bind=/host/path2:/guest/path2",
 		"--port=8080:80",
 		"--port=8443:443",
 	}
@@ -103,7 +105,7 @@ func TestCmdBindsAndPorts(t *testing.T) {
 }
 
 func TestCmdChangeID(t *testing.T) {
-	cfg := &ProotConf{
+	cfg := &proot.ProotConf{
 		BinPath:  "proot",
 		ChangeID: "1000:1000",
 	}
@@ -118,7 +120,7 @@ func TestCmdChangeID(t *testing.T) {
 }
 
 func TestCmdInvalidChangeID(t *testing.T) {
-	cfg := &ProotConf{
+	cfg := &proot.ProotConf{
 		BinPath:  "proot",
 		ChangeID: "invalid:id",
 	}
@@ -134,7 +136,7 @@ func TestCmdInvalidChangeID(t *testing.T) {
 }
 
 func TestCmdWithNoSeccomp(t *testing.T) {
-	cfg := &ProotConf{
+	cfg := &proot.ProotConf{
 		BinPath:   "proot",
 		NoSeccomp: true,
 	}
@@ -157,7 +159,7 @@ func TestCmdWithNoSeccomp(t *testing.T) {
 }
 
 func TestCmdFullConfig(t *testing.T) {
-	cfg := &ProotConf{
+	cfg := &proot.ProotConf{
 		BinPath:       "proot",
 		Command:       []string{"bash"},
 		MixedMode:     true,
@@ -201,8 +203,8 @@ func TestCmdFullConfig(t *testing.T) {
 		"--cwd=/tmp",
 		"--rootfs=/new/rootfs",
 		"--kernel-release=5.10.0",
-		"--mount=/mnt/host1:/mnt/guest1",
-		"--mount=/mnt/host2:/mnt/guest2",
+		"--bind=/mnt/host1:/mnt/guest1",
+		"--bind=/mnt/host2:/mnt/guest2",
 		"--port=8000:80",
 		"--port=8443:443",
 		"bash",

@@ -75,39 +75,44 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
   -ldflags "-X main.Version=${GIVME_VERSION} -X main.Commit=${GIVME_COMMIT} -X main.BuildDate=$(date +%Y-%m-%d)" \
   -o givme ./cmd/givme
 
-# Final stage: Build the scratch-based image
-FROM scratch AS main
+# Stage 4: Build the scratch-based image
+FROM scratch AS pre-main
 
 ENV PATH="/givme/bin" \
-    HOME="/root" \
-    USER="root" \
     SSL_CERT_DIR="/givme/certs"
-
-WORKDIR /givme
-
-# Copy BusyBox
-COPY --from=prepare-busybox /busybox-bin /givme/bin/busybox
-
 SHELL [ "/givme/bin/busybox", "sh", "-c" ]
 
-# Busybox install
-RUN set -eux \
-  && /givme/bin/busybox --install /givme/bin/ \
-  && mkdir /bin \
-  && ln -s /givme/bin/sh /bin/sh
+# Copy BusyBox
+COPY --from=prepare-busybox /busybox-bin $PATH/busybox
 
 # Copy Proot
-COPY --from=prepare-proot /proot/bin/proot /givme/bin/proot
+COPY --from=prepare-proot /proot/bin/proot $PATH/proot
 
 # Copy Certs
 COPY --from=prepare-certs /etc/ssl/certs/ca-certificates.crt $SSL_CERT_DIR/ca-certificates.crt
 
 # Copy Givme
 COPY --from=prepare-givme /src/app/givme /givme/bin/givme
-RUN ln -s /givme/bin/givme /givme/givme
 
-# Create tmp directories
-RUN mkdir -p /tmp && chmod 777 /tmp
+# Busybox install
+RUN set -eux \
+  && busybox --install $PATH/ \
+  && mkdir /bin \
+  && ln -s $PATH/sh /bin/sh \
+  && ln -s $PATH/givme $HOME/givme \
+  && mkdir -p /tmp && chmod 777 /tmp
+
+# Final stage
+FROM scratch AS main
+
+COPY --from=pre-main /bin /bin
+COPY --from=pre-main /givme /givme
+COPY --from=pre-main /tmp /tmp
+
+ENV PATH="/givme/bin" \
+    HOME="/root" \
+    USER="root" \
+    SSL_CERT_DIR="/givme/certs"
 
 VOLUME [ "/givme" ]
 

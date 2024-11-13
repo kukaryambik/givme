@@ -37,11 +37,10 @@ RUN apk add --no-cache \
     musl-utils \
   && update-ca-certificates
 
-RUN git clone https://github.com/proot-me/proot.git /proot/src
-WORKDIR /proot/src
-
 ARG PROOT_VERSION="5f780cb"
+WORKDIR /proot/src
 RUN set -eux \
+  && git clone https://github.com/proot-me/proot.git . \
   && git checkout "${PROOT_VERSION}" \
   && export CFLAGS="-static" \
   && export LDFLAGS="-static -pthread" \
@@ -54,12 +53,7 @@ RUN set -eux \
   && cp src/proot /proot/bin/proot \
   && chmod +x /proot/bin/proot
 
-# Stage 3: Get certificates
-FROM alpine:3.20 AS prepare-certs
-
-RUN apk add --no-cache ca-certificates
-
-# Stage 4: Build Givme
+# Stage 3: Build Givme
 FROM golang:1.23-alpine3.20 AS prepare-givme
 
 WORKDIR /src/app
@@ -89,10 +83,10 @@ COPY --from=prepare-busybox /busybox-bin $PATH/busybox
 COPY --from=prepare-proot /proot/bin/proot $PATH/proot
 
 # Copy Certs
-COPY --from=prepare-certs /etc/ssl/certs/ca-certificates.crt $SSL_CERT_DIR/ca-certificates.crt
+COPY --from=prepare-givme /etc/ssl/certs/ca-certificates.crt $SSL_CERT_DIR/ca-certificates.crt
 
 # Copy Givme
-COPY --from=prepare-givme /src/app/givme /givme/bin/givme
+COPY --from=prepare-givme /src/app/givme $PATH/givme
 
 # Busybox install
 RUN set -eux \

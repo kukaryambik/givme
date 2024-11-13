@@ -135,9 +135,9 @@ func (opts *CommandOptions) Run() error {
 	// add volumes & mounts
 	prootConf.Binds = slices.Concat(opts.RunProotBinds, ignores)
 	for v := range cfg.Volumes {
-		oldpath := filepath.Join(opts.RootFS, v)
 		newpath := filepath.Join(defaultCacheDir(), fmt.Sprintf("vol_%s_%s", name, util.Slugify(v)))
-		if len(entries) == 0 {
+		if _, err := os.ReadDir(newpath); os.IsNotExist(err) {
+			oldpath := filepath.Join(opts.RootFS, v)
 			if err := os.Rename(oldpath, newpath); err != nil {
 				return fmt.Errorf("error renaming %s to %s: %v", oldpath, newpath, err)
 			}

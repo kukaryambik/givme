@@ -114,7 +114,7 @@ func Untar(src io.Reader, dst string, excl []string) error {
 
 // parallelProcess processes files in parallel
 func parallelProcess(hdrs *map[string]tar.Header, fn func(string, tar.Header) error) error {
-	sem := make(chan struct{}, runtime.GOMAXPROCS(0))
+	sem := make(chan struct{}, runtime.NumCPU())
 	var g errgroup.Group
 
 	for name, hdr := range *hdrs {

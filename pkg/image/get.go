@@ -80,10 +80,8 @@ func (conf *GetConf) Pull() (*Image, error) {
 		}),
 	}
 
-	// Trying to pull the image with anonymous access
-	image, err = remote.Image(
-		nameWithMirror, append(opts, remote.WithAuth(authn.Anonymous))...,
-	)
+	// Trying to pull the image with default access
+	image, err = remote.Image(nameWithMirror, opts...)
 
 	switch {
 	case err == nil:

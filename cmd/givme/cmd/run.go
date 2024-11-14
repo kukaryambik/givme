@@ -127,7 +127,6 @@ func (opts *CommandOptions) Run() error {
 
 	// Add mounts
 	ignores := paths.Ignore(opts.IgnorePaths).AddPaths(opts.Workdir)
-	logrus.Info("Ignored exclusions: ", ignores.Exclusions)
 	for _, e := range ignores.Exclusions {
 		realPath := filepath.Join(opts.RootFS, e)
 		if err := os.MkdirAll(realPath, os.ModePerm); err != nil {

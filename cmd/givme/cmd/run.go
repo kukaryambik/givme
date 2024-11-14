@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/kukaryambik/givme/pkg/image"
@@ -92,13 +91,6 @@ func (opts *CommandOptions) Run() error {
 	opts.RootFS = filepath.Join(opts.Workdir, "rootfs", name)
 	logrus.Infof("Using %q as rootfs", opts.RootFS)
 
-	// Configure ignored paths
-	ignoreConf := paths.Ignore(opts.IgnorePaths).ExclFromList(opts.RootFS)
-	ignores, err := ignoreConf.AddPaths(opts.Workdir).List()
-	if err != nil {
-		return err
-	}
-
 	// Remove the rootfs
 	if opts.RunRemoveAfter {
 		defer func() error {
@@ -113,7 +105,7 @@ func (opts *CommandOptions) Run() error {
 		return err
 	}
 	if len(entries) == 0 {
-		if err := image.Extract(img, opts.RootFS, ignores...); err != nil {
+		if err := image.Extract(img, opts.RootFS); err != nil {
 			return err
 		}
 	}
@@ -121,6 +113,7 @@ func (opts *CommandOptions) Run() error {
 	// Create the proot command
 	prootConf := proot.ProotConf{
 		BinPath:    util.Coalesce(opts.RunProotBin, filepath.Join(util.GetExecDir(), "proot")),
+		Binds:      opts.RunProotBinds,
 		Command:    command,
 		RootFS:     opts.RootFS,
 		ChangeID:   util.Coalesce(opts.RunChangeID, cfg.User, "0:0"),
@@ -128,23 +121,26 @@ func (opts *CommandOptions) Run() error {
 		Env:        env,
 		ExtraFlags: strings.Split(strings.TrimSpace(opts.RunProotFlags), " "),
 		MixedMode:  true,
-		TmpDir:     opts.Workdir,
+		TmpDir:     defaultCacheDir(),
 		KillOnExit: true,
 	}
 
-	// add volumes & mounts
-	prootConf.Binds = slices.Concat(opts.RunProotBinds, ignores)
-	for v := range cfg.Volumes {
-		newpath := filepath.Join(defaultCacheDir(), fmt.Sprintf("vol_%s_%s", name, util.Slugify(v)))
-		if _, err := os.ReadDir(newpath); os.IsNotExist(err) {
-			oldpath := filepath.Join(opts.RootFS, v)
-			if err := os.Rename(oldpath, newpath); err != nil {
-				return fmt.Errorf("error renaming %s to %s: %v", oldpath, newpath, err)
-			}
+	// Add mounts
+	ignores := paths.Ignore(opts.IgnorePaths).AddPaths(opts.Workdir)
+	logrus.Info("Ignored exclusions: ", ignores.Exclusions)
+	for _, e := range ignores.Exclusions {
+		realPath := filepath.Join(opts.RootFS, e)
+		if err := os.MkdirAll(realPath, os.ModePerm); err != nil {
+			return err
 		}
-		f := newpath + ":" + v
-		prootConf.Binds = append(prootConf.Binds, f)
+		prootConf.Binds = append(prootConf.Binds, fmt.Sprintf("%s:%s", realPath, e))
 	}
+	ignores.Exclusions = nil
+	binds, err := ignores.List()
+	if err != nil {
+		return err
+	}
+	prootConf.Binds = append(prootConf.Binds, binds...)
 
 	// Create the proot command and run it
 	cmd := prootConf.Cmd()

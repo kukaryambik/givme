@@ -20,11 +20,20 @@ var (
 )
 
 func Ignore(i []string) *IgnoreConf {
+	var excl, ignore []string
+	for _, p := range i {
+		if strings.HasPrefix(p, "!") {
+			excl = append(excl, p[1:])
+		} else {
+			ignore = append(ignore, p)
+		}
+	}
 	return &IgnoreConf{
+		Exclusions:    excl,
 		IgnoreExecDir: true,
 		IgnoreMounts:  true,
 		IgnoreSystem:  true,
-		IgnorePaths:   i,
+		IgnorePaths:   ignore,
 	}
 }
 
@@ -56,16 +65,7 @@ func (conf *IgnoreConf) List() ([]string, error) {
 		conf.IgnorePaths = append(conf.IgnorePaths, SystemDirs...)
 	}
 
-	var ignore []string
-	for _, p := range conf.IgnorePaths {
-		if strings.HasPrefix(p, "!") {
-			conf.Exclusions = append(conf.Exclusions, p[1:])
-		} else {
-			ignore = append(ignore, p)
-		}
-	}
-
-	ignore, err := AbsAll(ignore)
+	ignore, err := AbsAll(conf.IgnorePaths)
 	if err != nil {
 		return nil, err
 	}

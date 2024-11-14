@@ -38,20 +38,15 @@ RUN apk add --no-cache \
   && update-ca-certificates
 
 ARG PROOT_VERSION="5f780cb"
-WORKDIR /proot/src
+WORKDIR /proot
 RUN set -eux \
   && git clone https://github.com/proot-me/proot.git . \
   && git checkout "${PROOT_VERSION}" \
   && export CFLAGS="-static" \
   && export LDFLAGS="-static -pthread" \
   && make -C src loader.elf build.h \
-  && make -C src proot
-
-# Install proot
-RUN set -eux \
-  && mkdir -p /proot/lib /proot/bin \
-  && cp src/proot /proot/bin/proot \
-  && chmod +x /proot/bin/proot
+  && make -C src proot \
+  && chmod +x src/proot
 
 # Stage 3: Build Givme
 FROM golang:1.23-alpine3.20 AS prepare-givme
@@ -80,7 +75,7 @@ SHELL [ "/givme/bin/busybox", "sh", "-c" ]
 COPY --from=prepare-busybox /busybox-bin $PATH/busybox
 
 # Copy Proot
-COPY --from=prepare-proot /proot/bin/proot $PATH/proot
+COPY --from=prepare-proot /proot/src/proot $PATH/proot
 
 # Copy Certs
 COPY --from=prepare-givme /etc/ssl/certs/ca-certificates.crt $SSL_CERT_DIR/ca-certificates.crt

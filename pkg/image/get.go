@@ -3,13 +3,11 @@ package image
 import (
 	"fmt"
 	"runtime"
-	"time"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/crane"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/cache"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/kukaryambik/givme/pkg/paths"
 	"github.com/sirupsen/logrus"
 )
@@ -68,20 +66,13 @@ func (conf *GetConf) Pull() (*Image, error) {
 
 	var image v1.Image
 
-	opts := []remote.Option{
-		remote.WithPlatform(platform),
-		remote.WithJobs(runtime.NumCPU()),
-		remote.WithRetryBackoff(remote.Backoff{
-			Duration: 1 * time.Second,
-			Factor:   2.0,
-			Jitter:   0.15,
-			Steps:    5,
-			Cap:      10 * time.Second,
-		}),
+	opts := []crane.Option{
+		crane.WithPlatform(&platform),
+		crane.WithJobs(runtime.NumCPU()),
 	}
 
 	// Trying to pull the image with default access
-	image, err = remote.Image(nameWithMirror, opts...)
+	image, err = crane.Pull(nameWithMirror.String(), opts...)
 
 	switch {
 	case err == nil:
@@ -96,8 +87,8 @@ func (conf *GetConf) Pull() (*Image, error) {
 				Password: conf.RegistryPassword,
 			},
 		)
-		if image, err = remote.Image(
-			nameWithMirror, append(opts, remote.WithAuth(basicAuth))...,
+		if image, err = crane.Pull(
+			nameWithMirror.String(), append(opts, crane.WithAuth(basicAuth))...,
 		); err != nil {
 			return nil, fmt.Errorf("error pulling image with credentials %s: %v", image, err)
 		}

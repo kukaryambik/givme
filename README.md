@@ -246,7 +246,7 @@ Flags:
 
 ## TODO
 
-- [x] Add volumes (in proot)
+- [ ] ~~Add volumes (in proot)~~
 - [x] Chroot (or something like this) as an option
 - [ ] Retry for docker pull (configure it more transparent)
 - [ ] TESTS!!!

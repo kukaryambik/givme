@@ -82,15 +82,15 @@ func init() {
 	rootCmd.MarkPersistentFlagDirname("workdir")
 	rootCmd.PersistentFlags().StringSliceVarP(
 		&opts.IgnorePaths, "ignore", "i", nil, fmt.Sprintf("Ignore these paths; or use %s_IGNORE", a))
-	rootCmd.Flags().StringVar(
+	rootCmd.PersistentFlags().StringVar(
 		&opts.RegistryMirror, "registry-mirror", opts.RegistryMirror,
 		fmt.Sprintf("Registry mirror; or use %s_REGISTRY_MIRROR", strings.ToUpper(AppName)),
 	)
-	rootCmd.Flags().StringVar(
+	rootCmd.PersistentFlags().StringVar(
 		&opts.RegistryUsername, "registry-username", opts.RegistryUsername,
 		fmt.Sprintf("Username for registry authentication; or use %s_REGISTRY_USERNAME", a),
 	)
-	rootCmd.Flags().StringVar(
+	rootCmd.PersistentFlags().StringVar(
 		&opts.RegistryPassword, "registry-password", opts.RegistryPassword,
 		fmt.Sprintf("Password for registry authentication; or use %s_REGISTRY_PASSWORD", a),
 	)

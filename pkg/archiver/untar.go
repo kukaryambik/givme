@@ -67,6 +67,20 @@ func Untar(src io.Reader, dst string, excl []string) error {
 			d = targetPath
 		}
 		if !paths.PathContains(d, dirs) {
+			// Check if the directory exists
+			dstDirInfo, err := os.Stat(d)
+			if err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("error accessing %s: %v", d, err)
+			}
+
+			// Remove if it exists and is not a directory
+			if dstDirInfo != nil && !dstDirInfo.IsDir() {
+				if err := os.RemoveAll(d); err != nil {
+					return fmt.Errorf("error removing %s: %v", d, err)
+				}
+			}
+
+			// Create directory
 			if err := os.MkdirAll(d, os.ModePerm); err != nil {
 				return fmt.Errorf("error creating parent directory for %s: %v", targetPath, err)
 			}

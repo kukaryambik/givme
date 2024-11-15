@@ -2,6 +2,8 @@ package image
 
 import (
 	"fmt"
+	"runtime"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -24,8 +26,18 @@ func New(ref name.Reference, src, dst string, config v1.Config) (*Image, error) 
 		return nil, fmt.Errorf("error appending layers to image: %v", err)
 	}
 
+	cfg, err := image.ConfigFile()
+	if err != nil {
+		return nil, fmt.Errorf("error getting config file: %v", err)
+	}
+
+	cfg.Config = config
+	cfg.Created = v1.Time{Time: time.Now()}
+	cfg.Architecture = runtime.GOARCH
+	cfg.OS = runtime.GOOS
+
 	// add the config file
-	image, err = mutate.Config(image, config)
+	image, err = mutate.ConfigFile(image, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("error mutating image: %v", err)
 	}

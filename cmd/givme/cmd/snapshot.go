@@ -55,7 +55,8 @@ func (opts *CommandOptions) Snapshot() error {
 	}
 
 	// Configure ignored paths
-	ignoreConf := paths.Ignore(opts.IgnorePaths).ExclFromList(opts.RootFS)
+	ignoreConf := paths.Ignore(opts.IgnorePaths)
+	ignoreConf.IgnoreExecDir = false
 	ignores, err := ignoreConf.AddPaths(opts.Workdir).List()
 	if err != nil {
 		return err
@@ -77,6 +78,7 @@ func (opts *CommandOptions) Snapshot() error {
 	if err != nil {
 		return fmt.Errorf("error getting working directory: %v", err)
 	}
+
 	if _, err := image.New(nil, tmpTar, opts.TarFile, config); err != nil {
 		return fmt.Errorf("error creating image: %v", err)
 	}

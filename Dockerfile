@@ -88,20 +88,20 @@ RUN set -eux \
   && busybox --install $PATH/ \
   && mkdir /bin \
   && ln -s $PATH/sh /bin/sh \
-  && ln -s $PATH/givme $HOME/givme \
-  && mkdir -p /tmp && chmod 777 /tmp
+  && ln -s $PATH/givme $HOME/givme
 
 # Final stage
 FROM scratch AS main
 
 COPY --from=pre-main /bin /bin
 COPY --from=pre-main /givme /givme
-COPY --from=pre-main /tmp /tmp
 
 ENV PATH="/givme/bin" \
     HOME="/root" \
     USER="root" \
     SSL_CERT_DIR="/givme/certs"
+
+RUN mkdir -p /tmp && chmod 777 /tmp
 
 VOLUME [ "/givme" ]
 

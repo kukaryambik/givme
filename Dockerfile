@@ -105,4 +105,4 @@ RUN mkdir -p /tmp && chmod 777 /tmp
 
 VOLUME [ "/givme" ]
 
-ENTRYPOINT ["sh"]
+CMD ["sh"]

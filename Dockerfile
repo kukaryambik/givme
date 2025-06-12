@@ -1,7 +1,11 @@
 # Stage 1: Build static BusyBox
-FROM alpine:3.22 AS prepare-busybox
+FROM alpine:3.20 AS prepare-busybox
 
-RUN apk add --no-cache build-base wget linux-headers perl
+RUN apk add --no-cache \
+  build-base=~0.5 \
+  linux-headers=~6.6 \
+  perl=~5.38 \
+  wget=~1.24
 
 ARG BUSYBOX_VERSION=1.36.1
 
@@ -20,21 +24,21 @@ RUN set -eux \
 RUN cp /busybox-${BUSYBOX_VERSION}/busybox /busybox-bin
 
 # Stage 2: Build PRoot
-FROM alpine:3.22 AS prepare-proot
+FROM alpine:3.20 AS prepare-proot
 
 RUN apk add --no-cache \
-    build-base \
-    git \
-    python3 \
-    ca-certificates \
-    pkgconf \
-    talloc-dev \
-    talloc-static \
-    linux-headers \
-    libbsd-dev \
-    libbsd-static \
-    musl-dev \
-    musl-utils \
+    build-base=~0.5 \
+    git=~2.45 \
+    python3=~3.12 \
+    ca-certificates=~20241121 \
+    pkgconf=~2.2 \
+    talloc-dev=~2.4 \
+    talloc-static=~2.4 \
+    linux-headers=~6.6 \
+    libbsd-dev=~0.12 \
+    libbsd-static=~0.12 \
+    musl-dev=~1.2 \
+    musl-utils=~1.2 \
   && update-ca-certificates
 
 ARG PROOT_VERSION="5f780cb"

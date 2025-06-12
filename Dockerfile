@@ -1,5 +1,5 @@
 # Stage 1: Build static BusyBox
-FROM alpine:3.20 AS prepare-busybox
+FROM alpine:3.22 AS prepare-busybox
 
 RUN apk add --no-cache build-base wget linux-headers perl
 
@@ -20,7 +20,7 @@ RUN set -eux \
 RUN cp /busybox-${BUSYBOX_VERSION}/busybox /busybox-bin
 
 # Stage 2: Build PRoot
-FROM alpine:3.20 AS prepare-proot
+FROM alpine:3.22 AS prepare-proot
 
 RUN apk add --no-cache \
     build-base \

@@ -3,7 +3,7 @@ module github.com/kukaryambik/givme
 go 1.23.1
 
 require (
-	github.com/google/go-containerregistry v0.20.2
+	github.com/google/go-containerregistry v0.20.5
 	github.com/joho/godotenv v1.5.1
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3

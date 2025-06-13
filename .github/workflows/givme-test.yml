@@ -1,0 +1,27 @@
+name: Givme Test
+
+"on":
+  push: {}
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    name: Test Givme
+    runs-on: ubuntu-latest
+    container: ghcr.io/kukaryambik/givme:v1.5.7
+    steps:
+      - name: Givme run
+        run: |-
+          givme run curlimages/curl
+          curl --version
+
+      - name: Givme apply
+        run: |-
+          eval $(givme apply ubuntu)
+          apt-get update && apt-get install -y fortune cowsay
+          /usr/games/fortune | /usr/games/cowsay
+
+      - name: Givme exec
+        run: |-
+          exec givme exec alpine/helm
+          helm version

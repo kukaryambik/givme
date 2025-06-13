@@ -11,9 +11,7 @@ jobs:
     container: ghcr.io/kukaryambik/givme:v1.5.7
     steps:
       - name: Givme run
-        run: |-
-          givme run --entrypoint sh curlimages/curl
-          curl --version
+        run: givme run curlimages/curl -- --version
 
       - name: Givme apply
         run: |-

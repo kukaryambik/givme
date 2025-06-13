@@ -106,7 +106,7 @@ jobs:
     name: Test Givme
     runs-on: ubuntu-latest
     needs: build
-    container: ${{ needs.build.outputs.tags[0] }}@${{ needs.build.outputs.digest }}
+    container: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}
     steps:
       - name: Givme run
         run: givme run curlimages/curl -- --version

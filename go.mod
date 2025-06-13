@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.4
 
 require (
-	github.com/google/go-containerregistry v0.20.5
+	github.com/google/go-containerregistry v0.20.6
 	github.com/joho/godotenv v1.5.1
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
@@ -16,7 +16,7 @@ require (
 
 require (
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
-	github.com/docker/cli v28.1.1+incompatible // indirect
+	github.com/docker/cli v28.2.2+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect

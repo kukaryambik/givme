@@ -13,14 +13,11 @@ jobs:
       - name: Givme run
         run: givme run curlimages/curl -- --version
 
-      - name: Givme apply
+      - name: Givme apply & snapshot
         run: |-
           eval $(givme apply ubuntu)
           apt-get update && apt-get install -y fortune cowsay
           /usr/games/fortune | /usr/games/cowsay
-
-      - name: Givme snapshot
-        run: |-
           export SNAP=$(givme snapshot)
           echo "SNAP=$SNAP" >> $GITHUB_ENV
 
@@ -34,9 +31,9 @@ jobs:
 
       - name: Givme purge & extract
         run: |-
-          /givme/givme purge
-          /givme/bin/ls -l /
-          /givme/givme extract ${{ env.SNAP }}
-          . <(/givme/givme env ${{ env.SNAP }})
+          givme purge
+          ls -l /
+          givme extract ${{ env.SNAP }}
+          . <(givme env ${{ env.SNAP }})
           ls -l /
           apt-get --help

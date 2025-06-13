@@ -75,6 +75,8 @@ func (ta *tarArchiver) handleRegularFile(file string, fi os.FileInfo, relPath st
 		if original, exists := ta.addedFiles[id]; exists {
 			hdr.Typeflag = tar.TypeLink
 			hdr.Linkname = original
+			hdr.Size = 0
+
 			if err := ta.tarWriter.WriteHeader(hdr); err != nil {
 				return fmt.Errorf("error writing hard link header for %s: %v", file, err)
 			}

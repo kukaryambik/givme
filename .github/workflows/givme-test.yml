@@ -22,7 +22,7 @@ jobs:
       - name: Givme snapshot
         run: |-
           export SNAP=$(givme snapshot)
-          echo "Snapshot created: $SNAP"
+          echo "SNAP=$SNAP" >> $GITHUB_ENV
 
       - name: Givme exec
         run: givme exec alpine/helm version
@@ -36,7 +36,7 @@ jobs:
         run: |-
           /givme/givme purge
           /givme/bin/ls -l /
-          /givme/givme extract $SNAP
-          /givme/givme env $SNAP
+          /givme/givme extract ${{ env.SNAP }}
+          /givme/givme env ${{ env.SNAP }}
           ls -l /
           apt-get --help

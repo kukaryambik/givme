@@ -8,7 +8,7 @@ jobs:
   test:
     name: Test Givme
     runs-on: ubuntu-latest
-    container: ghcr.io/kukaryambik/givme:v1.5.7
+    container: ghcr.io/kukaryambik/givme:latest
     steps:
       - name: Givme run
         run: givme run curlimages/curl -- --version

@@ -1,4 +1,4 @@
-name: Docker
+name: Givme Build and Test
 
 on:
   push:
@@ -12,10 +12,8 @@ env:
   # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
 
-
 jobs:
   build:
-
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -23,6 +21,10 @@ jobs:
       # This is used to complete the identity challenge
       # with sigstore/fulcio when running outside of PRs.
       id-token: write
+
+    outputs:
+      digest: ${{ steps.build-and-push.outputs.digest }}
+      tags: ${{ steps.meta.outputs.tags }}
 
     steps:
       - name: Checkout repository
@@ -97,3 +99,37 @@ jobs:
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+  test:
+    name: Test Givme
+    runs-on: ubuntu-latest
+    needs: build
+    container: ${{ needs.build.outputs.tags }}@sha256:${{ needs.build.outputs.digest }}
+    steps:
+      - name: Givme run
+        run: givme run curlimages/curl -- --version
+
+      - name: Givme apply & snapshot
+        run: |-
+          eval $(givme apply ubuntu)
+          apt-get update && apt-get install -y fortune cowsay
+          /usr/games/fortune | /usr/games/cowsay
+          export SNAP=$(givme snapshot)
+          echo "SNAP=$SNAP" >> $GITHUB_ENV
+
+      - name: Givme exec
+        run: givme exec alpine/helm version
+
+      - name: Givme getenv
+        run: |-
+          eval $(givme getenv alpine/helm)
+          helm version
+
+      - name: Givme purge & extract
+        run: |-
+          givme purge
+          ls -l /
+          givme extract ${{ env.SNAP }}
+          . <(givme env ${{ env.SNAP }})
+          ls -l /
+          apt-get --help

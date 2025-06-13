@@ -19,7 +19,24 @@ jobs:
           apt-get update && apt-get install -y fortune cowsay
           /usr/games/fortune | /usr/games/cowsay
 
-      - name: Givme exec
+      - name: Givme snapshot
         run: |-
-          givme exec --entrypoint sh alpine/helm
+          export SNAP=$(givme snapshot)
+          echo "Snapshot created: $SNAP"
+
+      - name: Givme exec
+        run: givme exec alpine/helm version
+
+      - name: Givme getenv
+        run: |-
+          eval $(givme getenv alpine/helm)
           helm version
+
+      - name: Givme purge & extract
+        run: |-
+          /givme/givme purge
+          /givme/bin/ls -l /
+          /givme/givme extract $SNAP
+          /givme/givme env $SNAP
+          ls -l /
+          apt-get --help

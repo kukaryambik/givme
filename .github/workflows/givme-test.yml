@@ -37,6 +37,6 @@ jobs:
           /givme/givme purge
           /givme/bin/ls -l /
           /givme/givme extract ${{ env.SNAP }}
-          /givme/givme env ${{ env.SNAP }}
+          . <(/givme/givme env ${{ env.SNAP }})
           ls -l /
           apt-get --help

@@ -1,7 +1,7 @@
 # Givme
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/kukaryambik/givme)](https://goreportcard.com/report/github.com/kukaryambik/givme)
-[![Build Status](https://github.com/kukaryambik/givme/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/kukaryambik/givme/actions/workflows/docker-publish.yml)
+[![Build Status](https://github.com/kukaryambik/givme/actions/workflows/givme.yml/badge.svg)](https://github.com/kukaryambik/givme/actions/workflows/docker-publish.yml)
 [![License](https://img.shields.io/github/license/kukaryambik/givme)](/LICENSE)
 
 _«Givme, givme more, givme more, givme, givme more!»_

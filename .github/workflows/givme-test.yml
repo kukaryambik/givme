@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Givme run
         run: |-
-          givme run curlimages/curl
+          givme run --entrypoint sh curlimages/curl
           curl --version
 
       - name: Givme apply

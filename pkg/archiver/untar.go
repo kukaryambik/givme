@@ -13,18 +13,32 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// Chown determines whether to change file ownership during extraction.
+// It's set to true if the current user is root (UID 0), false otherwise.
 var Chown bool = os.Getuid() == 0
 
-// Untar extracts a tar archive from `src` to `dst`, excluding any paths specified in `excl`.
+// Untar extracts a tar archive from src to dst, excluding any paths specified in excl.
+// It processes the archive in sequential phases: first creating directories and extracting files,
+// then processing other entry types like links in parallel for optimal performance.
+//
+// Parameters:
+//   - src: io.Reader containing the tar archive data
+//   - dst: destination directory path where files will be extracted
+//   - excl: slice of paths to exclude from extraction
+//
+// Returns:
+//   - error: nil if successful, otherwise describes the failure
 func Untar(src io.Reader, dst string, excl []string) error {
 
 	logrus.Debugf("Unpacking tar archive to %s", dst)
 
+	// Convert destination path to absolute path for consistency
 	absDst, err := filepath.Abs(dst)
 	if err != nil {
 		return fmt.Errorf("error getting absolute path for %s: %v", dst, err)
 	}
 
+	// Convert exclusion list to absolute paths
 	absExcl, err := paths.AbsAll(excl)
 	if err != nil {
 		return fmt.Errorf("failed to convert exclusion list to absolute paths: %v", err)
@@ -32,8 +46,8 @@ func Untar(src io.Reader, dst string, excl []string) error {
 
 	tr := tar.NewReader(src)
 
-	hdrs := make(map[string]tar.Header)
-	var dirs []string
+	hdrs := make(map[string]tar.Header) // Store headers for later processing
+	var dirs []string                   // Collect directories to create
 
 	// Read entries and collect directories
 	for {
@@ -96,6 +110,7 @@ func Untar(src io.Reader, dst string, excl []string) error {
 		}
 	}
 
+	// Process all non-directory entries in parallel
 	processExceptDirs := func(name string, hdr tar.Header) error {
 		switch hdr.Typeflag {
 		case tar.TypeReg:
@@ -113,6 +128,7 @@ func Untar(src io.Reader, dst string, excl []string) error {
 		return err
 	}
 
+	// Process directories to restore their permissions
 	processDirs := func(name string, hdr tar.Header) error {
 		if hdr.Typeflag == tar.TypeDir {
 			restorePerm(name, &hdr)
@@ -126,9 +142,18 @@ func Untar(src io.Reader, dst string, excl []string) error {
 	return nil
 }
 
-// parallelProcess processes files in parallel
+// parallelProcess processes tar archive entries in parallel using goroutines.
+// It limits concurrency to the number of available CPU cores and executes
+// the provided function for each entry in the headers map.
+//
+// Parameters:
+//   - hdrs: pointer to map of file paths to tar headers
+//   - fn: function to execute for each entry, receives path and header
+//
+// Returns:
+//   - error: nil if all entries processed successfully, otherwise first error encountered
 func parallelProcess(hdrs *map[string]tar.Header, fn func(string, tar.Header) error) error {
-	sem := make(chan struct{}, runtime.NumCPU())
+	sem := make(chan struct{}, runtime.NumCPU()) // Semaphore to limit concurrency
 	var g errgroup.Group
 
 	for name, hdr := range *hdrs {
@@ -151,16 +176,25 @@ func parallelProcess(hdrs *map[string]tar.Header, fn func(string, tar.Header) er
 	return nil
 }
 
-// restorePerm restores the permissions of a file or directory
+// restorePerm restores the permissions, timestamps, and ownership of a file or directory
+// based on the information stored in the tar header. Ownership is only changed if
+// the global Chown variable is true (typically when running as root).
+//
+// Parameters:
+//   - path: filesystem path to the file or directory
+//   - info: tar header containing the original file metadata
 func restorePerm(path string, info *tar.Header) {
+	// Restore file permissions
 	if err := os.Chmod(path, info.FileInfo().Mode()); err != nil && !os.IsNotExist(err) {
 		logrus.Warnf("Error setting permissions for %s: %v", path, err)
 	}
 
+	// Restore access and modification times
 	if err := os.Chtimes(path, info.AccessTime, info.ModTime); err != nil && !os.IsNotExist(err) {
 		logrus.Warnf("Error setting times for %s: %v", path, err)
 	}
 
+	// Restore ownership if running as root
 	if Chown {
 		if err := os.Chown(path, info.Uid, info.Gid); err != nil && !os.IsNotExist(err) {
 			logrus.Warnf("Error setting owner for %s: %v", path, err)
@@ -168,9 +202,20 @@ func restorePerm(path string, info *tar.Header) {
 	}
 }
 
-// processFiles processes regular files from the archive
+// processFiles extracts regular files from the tar archive to the filesystem.
+// It optimizes by skipping files that already exist with the same size and modification time.
+// The function handles file creation, data copying, and basic error recovery.
+//
+// Parameters:
+//   - hdr: tar header containing file metadata
+//   - src: tar reader positioned at the file data
+//   - target: destination filesystem path for the extracted file
+//
+// Returns:
+//   - error: nil if file extracted successfully, otherwise describes the failure
 func processFiles(hdr *tar.Header, src *tar.Reader, target string) error {
 
+	// Check if file already exists with same properties to avoid unnecessary work
 	if info, err := os.Stat(target); err == nil {
 		// Check if the file already exists
 		if info.Size() == hdr.Size && info.ModTime().Equal(hdr.ModTime) {
@@ -182,6 +227,7 @@ func processFiles(hdr *tar.Header, src *tar.Reader, target string) error {
 		}
 	}
 
+	// Create the output file with appropriate permissions
 	outFile, err := os.OpenFile(target, os.O_RDWR|os.O_CREATE|os.O_TRUNC, hdr.FileInfo().Mode())
 	if err != nil {
 		return fmt.Errorf("error creating file %s: %v", target, err)
@@ -199,13 +245,25 @@ func processFiles(hdr *tar.Header, src *tar.Reader, target string) error {
 	return nil
 }
 
-// processLinks processes hard links from the archive
+// processLinks creates hard links from tar archive entries.
+// A hard link creates multiple directory entries that point to the same inode,
+// allowing the same file data to be accessed through different paths.
+//
+// Parameters:
+//   - hdr: tar header containing link metadata and target path
+//   - rootfs: root filesystem path for resolving relative link targets
+//   - target: destination filesystem path where the hard link will be created
+//
+// Returns:
+//   - error: nil if hard link created successfully, otherwise describes the failure
 func processLinks(hdr *tar.Header, rootfs, target string) error {
 	linkTargetPath := filepath.Join(rootfs, hdr.Linkname)
 	logrus.Tracef("Creating hard link: %s -> %s", target, linkTargetPath)
+	// Remove any existing file at the target location
 	if err := os.RemoveAll(target); err != nil {
 		return fmt.Errorf("error removing existing file %s: %v", target, err)
 	}
+	// Create the hard link
 	if err := os.Link(linkTargetPath, target); err != nil {
 		return fmt.Errorf("error creating hard link %s: %v", target, err)
 	}
@@ -215,12 +273,23 @@ func processLinks(hdr *tar.Header, rootfs, target string) error {
 	return nil
 }
 
-// processSymlinks processes symbolic links from the archive
+// processSymlinks creates symbolic links from tar archive entries.
+// A symbolic link is a special file that contains a path reference to another file or directory,
+// allowing indirect access to the target through the link path.
+//
+// Parameters:
+//   - hdr: tar header containing symlink metadata and target path
+//   - target: destination filesystem path where the symbolic link will be created
+//
+// Returns:
+//   - error: nil if symbolic link created successfully, otherwise describes the failure
 func processSymlinks(hdr *tar.Header, target string) error {
 	logrus.Tracef("Creating symbolic link: %s -> %s", target, hdr.Linkname)
+	// Remove any existing file at the target location
 	if err := os.RemoveAll(target); err != nil {
 		return fmt.Errorf("error removing existing file %s: %v", target, err)
 	}
+	// Create the symbolic link
 	if err := os.Symlink(hdr.Linkname, target); err != nil {
 		return fmt.Errorf("error creating symbolic link %s: %v", target, err)
 	}

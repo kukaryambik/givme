@@ -30,7 +30,7 @@ RUN apk add --no-cache \
     build-base=~0.5 \
     git=~2.45 \
     python3=~3.12 \
-    ca-certificates=~20241121 \
+    ca-certificates=~20250911 \
     pkgconf=~2.2 \
     talloc-dev=~2.4 \
     talloc-static=~2.4 \

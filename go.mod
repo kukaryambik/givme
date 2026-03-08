@@ -1,6 +1,6 @@
 module github.com/kukaryambik/givme
 
-go 1.24.0
+go 1.25.0
 
 toolchain go1.25.4
 
@@ -11,7 +11,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.21.0
-	golang.org/x/sync v0.18.0
+	golang.org/x/sync v0.20.0
 )
 
 require (

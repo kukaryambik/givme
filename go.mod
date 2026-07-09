@@ -2,7 +2,7 @@ module github.com/kukaryambik/givme
 
 go 1.25.0
 
-toolchain go1.25.4
+toolchain go1.26.5
 
 require (
 	github.com/google/go-containerregistry v0.21.7

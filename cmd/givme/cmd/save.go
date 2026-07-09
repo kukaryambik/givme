@@ -20,8 +20,11 @@ func SaveCmd() *cobra.Command {
 			opts.Update = true
 			cmd.SilenceUsage = true
 			img, err := opts.Save()
+			if err != nil {
+				return err
+			}
 			fmt.Println(img.File)
-			return err
+			return nil
 		},
 	}
 

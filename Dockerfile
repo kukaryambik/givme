@@ -53,7 +53,7 @@ RUN set -eux \
   && chmod +x src/proot
 
 # Stage 3: Build Givme
-FROM golang:1.24-alpine3.20 AS prepare-givme
+FROM golang:1.25-alpine3.21 AS prepare-givme
 
 WORKDIR /src/app
 
